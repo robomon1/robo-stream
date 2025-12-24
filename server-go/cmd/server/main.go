@@ -3,14 +3,16 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/robomon1/stream-pi-go/server-go/internal/api"
+	"github.com/robomon1/stream-pi-go/server-go/internal/obs"
+	"github.com/robomon1/stream-pi-go/server-go/internal/obs/actions"
 	"github.com/sirupsen/logrus"
-	"github.com/stream-pi/server-go/internal/obs"
-	"github.com/stream-pi/server-go/internal/obs/actions"
 )
 
 var (
@@ -25,6 +27,7 @@ func main() {
 	obsHost := flag.String("obs-host", getEnvOrDefault("OBS_HOST", "localhost"), "OBS WebSocket host")
 	obsPort := flag.Int("obs-port", getEnvOrDefaultInt("OBS_PORT", 4455), "OBS WebSocket port")
 	obsPassword := flag.String("obs-password", os.Getenv("OBS_PASSWORD"), "OBS WebSocket password")
+	httpPort := flag.Int("port", getEnvOrDefaultInt("SERVER_PORT", 8080), "HTTP API server port")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	showVersion := flag.Bool("version", false, "Show version information")
 	testMode := flag.Bool("test", false, "Run in test mode (connect and display info)")
@@ -103,6 +106,26 @@ func main() {
 		return
 	}
 
+	// Start HTTP API server
+	apiHandler := api.NewHandler(obsManager, logger)
+	
+	http.HandleFunc("/api/action", apiHandler.HandleAction)
+	http.HandleFunc("/api/status", apiHandler.HandleGetStatus)
+	http.HandleFunc("/api/scenes", apiHandler.HandleGetScenes)
+	http.HandleFunc("/api/inputs", apiHandler.HandleGetInputs)
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "OK")
+	})
+
+	go func() {
+		addr := fmt.Sprintf(":%d", *httpPort)
+		logger.Infof("🌐 HTTP API server starting on http://localhost%s", addr)
+		if err := http.ListenAndServe(addr, nil); err != nil {
+			logger.Fatalf("HTTP server failed: %v", err)
+		}
+	}()
+
 	logger.Info("Stream-Pi Server running. Press Ctrl+C to stop.")
 
 	// Wait for interrupt signal
@@ -130,16 +153,11 @@ func testOBSConnection(manager *obs.Manager, logger *logrus.Logger) {
 		return
 	}
 
-	// Create action managers
-	sceneManager := actions.NewSceneManager(client, logger)
-	streamManager := actions.NewStreamManager(client, logger)
-	sourceManager := actions.NewSourceManager(client, logger)
-
 	logger.Info("🧪 Running OBS integration tests...")
 
 	// Test 1: Get scenes
 	logger.Info("📋 Getting scene list...")
-	scenes, err := sceneManager.GetSceneList()
+	scenes, err := actions.GetSceneList(client)
 	if err != nil {
 		logger.Errorf("Failed to get scenes: %v", err)
 	} else {
@@ -156,7 +174,7 @@ func testOBSConnection(manager *obs.Manager, logger *logrus.Logger) {
 
 	// Test 2: Get current scene
 	logger.Info("🎬 Getting current scene...")
-	currentScene, err := sceneManager.GetCurrentScene()
+	currentScene, err := actions.GetCurrentScene(client)
 	if err != nil {
 		logger.Errorf("Failed to get current scene: %v", err)
 	} else {
@@ -165,25 +183,25 @@ func testOBSConnection(manager *obs.Manager, logger *logrus.Logger) {
 
 	// Test 3: Get stream status
 	logger.Info("📡 Getting stream status...")
-	streaming, err := streamManager.GetStreamStatus()
+	streamStatus, err := actions.GetStreamStatus(client)
 	if err != nil {
 		logger.Errorf("Failed to get stream status: %v", err)
 	} else {
-		logger.Infof("Streaming: %v", streaming)
+		logger.Infof("Streaming: %v", streamStatus.Active)
 	}
 
 	// Test 4: Get recording status
 	logger.Info("🔴 Getting recording status...")
-	recording, paused, err := streamManager.GetRecordStatus()
+	recordStatus, err := actions.GetRecordStatus(client)
 	if err != nil {
 		logger.Errorf("Failed to get record status: %v", err)
 	} else {
-		logger.Infof("Recording: %v (paused: %v)", recording, paused)
+		logger.Infof("Recording: %v (paused: %v)", recordStatus.Active, recordStatus.Paused)
 	}
 
 	// Test 5: Get inputs
 	logger.Info("🎤 Getting input list...")
-	inputs, err := sourceManager.GetInputList()
+	inputs, err := actions.GetInputList(client)
 	if err != nil {
 		logger.Errorf("Failed to get inputs: %v", err)
 	} else {

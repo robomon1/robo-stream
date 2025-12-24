@@ -1,4 +1,4 @@
-module github.com/stream-pi/server-go
+module github.com/robomon1/stream-pi-go/server-go
 
 go 1.21
 
