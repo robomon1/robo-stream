@@ -4,7 +4,7 @@ Complete guide for testing OBS WebSocket 5.x integration with Stream-Pi Server.
 
 ## Table of Contents
 1. [OBS Studio Setup](#obs-studio-setup)
-2. [WebSocket Server Configuration](#websocket-server-configuration)
+2. [Server Configuration](#server-configuration)
 3. [Testing with curl](#testing-with-curl)
 4. [Testing with Go Code](#testing-with-go-code)
 5. [Common Test Scenarios](#common-test-scenarios)
@@ -52,42 +52,74 @@ obs --version
 6. Click **Show Connect Info** to see/set password
 7. Click **Apply** and **OK**
 
-## WebSocket Server Configuration
+## Server Configuration
 
-### Default Settings
-```yaml
-Host: localhost (or 127.0.0.1)
-Port: 4455
-Password: your_password_here
-Protocol: ws:// (not wss://)
+### Configuration Methods
+
+Stream-Pi Server supports two configuration methods:
+
+**1. Environment Variables (Recommended):**
+```bash
+export OBS_HOST=localhost        # or IP address
+export OBS_PORT=4455             # default OBS port
+export OBS_PASSWORD=your_password
+export LOG_LEVEL=info            # optional: debug, info, warn, error
 ```
 
-### Test Connection Info
+**2. Command-Line Flags:**
+```bash
+./streampi-server \
+  --obs-host localhost \
+  --obs-port 4455 \
+  --obs-password your_password \
+  --log-level info
 ```
-WebSocket URL: ws://localhost:4455
-Password: test_password
+
+**3. Combination (flags override environment variables):**
+```bash
+export OBS_PASSWORD=mypassword
+./streampi-server --obs-host 192.168.1.100 --test
+```
+
+### Default Values
+
+| Setting | Default | Environment Variable |
+|---------|---------|---------------------|
+| OBS Host | `localhost` | `OBS_HOST` |
+| OBS Port | `4455` | `OBS_PORT` |
+| OBS Password | *(none)* | `OBS_PASSWORD` |
+| Log Level | `info` | `LOG_LEVEL` |
+
+### Quick Start
+
+```bash
+# Set password
+export OBS_PASSWORD="your_password"
+
+# Run in test mode
+./streampi-server --test
+
+# Run normally
+./streampi-server
 ```
 
 ### Network Access
-To access from other machines on your network:
-```yaml
-Host: 0.0.0.0  # Listen on all interfaces
-Port: 4455
-```
 
-Then connect from other machines using:
-```
-ws://YOUR_MAC_IP:4455
-```
+To access OBS from other machines on your network:
 
-Find your IP:
-```bash
-# macOS
-ifconfig | grep "inet " | grep -v 127.0.0.1
-
-# Linux
-ip addr show | grep "inet " | grep -v 127.0.0.1
-```
+1. In OBS: Set server to listen on all interfaces (0.0.0.0)
+2. Find your IP:
+   ```bash
+   # macOS
+   ifconfig | grep "inet " | grep -v 127.0.0.1
+   
+   # Linux
+   ip addr show | grep "inet " | grep -v 127.0.0.1
+   ```
+3. Connect from other machines:
+   ```bash
+   ./streampi-server --obs-host 192.168.1.100
+   ```
 
 ## Testing with curl
 
@@ -145,96 +177,49 @@ wscat -c ws://localhost:4455
 # You'll see the Hello message
 ```
 
-### 4. Python WebSocket Test Script
-
-Save as `test_obs_ws.py`:
-```python
-#!/usr/bin/env python3
-import websocket
-import json
-import hashlib
-import base64
-import uuid
-
-# Configuration
-WS_URL = "ws://localhost:4455"
-PASSWORD = "your_password"
-
-def generate_auth_response(password, salt, challenge):
-    """Generate authentication response for OBS WebSocket 5.x"""
-    secret = base64.b64encode(
-        hashlib.sha256((password + salt).encode()).digest()
-    ).decode()
-    
-    auth = base64.b64encode(
-        hashlib.sha256((secret + challenge).encode()).digest()
-    ).decode()
-    
-    return auth
-
-def test_connection():
-    ws = websocket.WebSocket()
-    ws.connect(WS_URL)
-    
-    # Receive Hello message
-    hello_msg = json.loads(ws.recv())
-    print("Hello message:", json.dumps(hello_msg, indent=2))
-    
-    # Extract auth challenge
-    auth_data = hello_msg['d']['authentication']
-    salt = auth_data['salt']
-    challenge = auth_data['challenge']
-    
-    # Generate auth response
-    auth_response = generate_auth_response(PASSWORD, salt, challenge)
-    
-    # Send Identify message
-    identify = {
-        "op": 1,
-        "d": {
-            "rpcVersion": 1,
-            "authentication": auth_response,
-            "eventSubscriptions": 33  # All events
-        }
-    }
-    ws.send(json.dumps(identify))
-    
-    # Receive Identified message
-    identified = json.loads(ws.recv())
-    print("Identified:", json.dumps(identified, indent=2))
-    
-    # Send a request (GetVersion)
-    request = {
-        "op": 6,
-        "d": {
-            "requestType": "GetVersion",
-            "requestId": str(uuid.uuid4())
-        }
-    }
-    ws.send(json.dumps(request))
-    
-    # Receive response
-    response = json.loads(ws.recv())
-    print("Response:", json.dumps(response, indent=2))
-    
-    ws.close()
-    print("Connection test successful!")
-
-if __name__ == "__main__":
-    test_connection()
-```
-
-Run:
-```bash
-chmod +x test_obs_ws.py
-./test_obs_ws.py
-```
-
 ## Testing with Go Code
 
-### 1. Simple Connection Test
+### Quick Test (Built-in)
 
-Save as `test_connection.go`:
+The server has a built-in test mode:
+
+```bash
+export OBS_PASSWORD="your_password"
+./streampi-server --test
+```
+
+**Expected Output:**
+```
+🚀 Starting Stream-Pi Server Go
+Version: 1.0.0
+Connecting to OBS at localhost:4455
+✅ Connected to OBS!
+OBS Version: 30.0.0
+🧪 Running OBS integration tests...
+📋 Getting scene list...
+Found 3 scenes:
+  - Scene 1
+  - Scene 2
+  - Scene 3
+🎬 Getting current scene...
+Current scene: Scene 1
+📡 Getting stream status...
+Streaming: false
+🔴 Getting recording status...
+Recording: false (paused: false)
+🎤 Getting input list...
+Found 2 inputs:
+  - Microphone
+  - Desktop Audio
+✅ All tests completed!
+Test mode complete, exiting
+```
+
+### Manual Test Scripts
+
+Create test files for specific operations:
+
+**test_connection.go:**
 ```go
 package main
 
@@ -246,7 +231,6 @@ import (
 )
 
 func main() {
-	// Connect to OBS
 	client, err := goobs.New(
 		"localhost:4455",
 		goobs.WithPassword("your_password"),
@@ -256,7 +240,6 @@ func main() {
 	}
 	defer client.Disconnect()
 
-	// Get version
 	version, err := client.General.GetVersion()
 	if err != nil {
 		log.Fatalf("Failed to get version: %v", err)
@@ -273,351 +256,46 @@ Run:
 go run test_connection.go
 ```
 
-### 2. Test All Scene Operations
-
-Save as `test_scenes.go`:
-```go
-package main
-
-import (
-	"fmt"
-	"log"
-
-	"github.com/andreykaipov/goobs"
-	"github.com/andreykaipov/goobs/api/requests/scenes"
-)
-
-func main() {
-	client, err := goobs.New("localhost:4455", goobs.WithPassword("your_password"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer client.Disconnect()
-
-	// Get scene list
-	sceneList, err := client.Scenes.GetSceneList()
-	if err != nil {
-		log.Fatalf("Failed to get scene list: %v", err)
-	}
-
-	fmt.Printf("✅ Available Scenes:\n")
-	for i, scene := range sceneList.Scenes {
-		fmt.Printf("  %d. %s\n", i+1, scene.SceneName)
-	}
-
-	if len(sceneList.Scenes) == 0 {
-		fmt.Println("⚠️  No scenes found. Create some scenes in OBS first.")
-		return
-	}
-
-	// Get current scene
-	current, err := client.Scenes.GetCurrentProgramScene()
-	if err != nil {
-		log.Fatalf("Failed to get current scene: %v", err)
-	}
-	fmt.Printf("\n✅ Current Scene: %s\n", current.CurrentProgramSceneName)
-
-	// Test scene switching (if multiple scenes exist)
-	if len(sceneList.Scenes) > 1 {
-		targetScene := sceneList.Scenes[1].SceneName
-		fmt.Printf("\n🔄 Switching to: %s\n", targetScene)
-
-		req := &scenes.SetCurrentProgramSceneParams{
-			SceneName: &targetScene,
-		}
-		_, err := client.Scenes.SetCurrentProgramScene(req)
-		if err != nil {
-			log.Fatalf("Failed to set scene: %v", err)
-		}
-
-		fmt.Printf("✅ Successfully switched to: %s\n", targetScene)
-	}
-}
-```
-
-### 3. Test Streaming Operations
-
-Save as `test_streaming.go`:
-```go
-package main
-
-import (
-	"fmt"
-	"log"
-
-	"github.com/andreykaipov/goobs"
-)
-
-func main() {
-	client, err := goobs.New("localhost:4455", goobs.WithPassword("your_password"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer client.Disconnect()
-
-	// Get stream status
-	status, err := client.Stream.GetStreamStatus()
-	if err != nil {
-		log.Fatalf("Failed to get stream status: %v", err)
-	}
-
-	fmt.Printf("✅ Stream Status:\n")
-	fmt.Printf("  Active: %v\n", status.OutputActive)
-	fmt.Printf("  Reconnecting: %v\n", status.OutputReconnecting)
-	if status.OutputActive {
-		fmt.Printf("  Duration: %d ms\n", status.OutputDuration)
-		fmt.Printf("  Bytes: %d\n", status.OutputBytes)
-	}
-
-	// Get recording status
-	recStatus, err := client.Record.GetRecordStatus()
-	if err != nil {
-		log.Fatalf("Failed to get record status: %v", err)
-	}
-
-	fmt.Printf("\n✅ Recording Status:\n")
-	fmt.Printf("  Active: %v\n", recStatus.OutputActive)
-	fmt.Printf("  Paused: %v\n", recStatus.OutputPaused)
-	if recStatus.OutputActive {
-		fmt.Printf("  Duration: %d ms\n", recStatus.OutputDuration)
-		fmt.Printf("  Bytes: %d\n", recStatus.OutputBytes)
-	}
-
-	// ⚠️  Uncomment to test toggle (will actually start/stop streaming!)
-	// fmt.Println("\n🔄 Toggling stream...")
-	// _, err = client.Stream.ToggleStream(nil)
-	// if err != nil {
-	//     log.Fatalf("Failed to toggle stream: %v", err)
-	// }
-	// fmt.Println("✅ Stream toggled!")
-}
-```
-
-### 4. Test Audio/Sources
-
-Save as `test_audio.go`:
-```go
-package main
-
-import (
-	"fmt"
-	"log"
-
-	"github.com/andreykaipov/goobs"
-	"github.com/andreykaipov/goobs/api/requests/inputs"
-)
-
-func main() {
-	client, err := goobs.New("localhost:4455", goobs.WithPassword("your_password"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer client.Disconnect()
-
-	// Get input list
-	inputList, err := client.Inputs.GetInputList(nil)
-	if err != nil {
-		log.Fatalf("Failed to get input list: %v", err)
-	}
-
-	fmt.Printf("✅ Available Inputs:\n")
-	for i, input := range inputList.Inputs {
-		fmt.Printf("  %d. %s (%s)\n", i+1, input.InputName, input.InputKind)
-	}
-
-	if len(inputList.Inputs) == 0 {
-		fmt.Println("⚠️  No inputs found. Add some audio sources in OBS first.")
-		return
-	}
-
-	// Test with first input
-	inputName := inputList.Inputs[0].InputName
-	fmt.Printf("\n🎤 Testing with input: %s\n", inputName)
-
-	// Get mute status
-	muteReq := &inputs.GetInputMuteParams{
-		InputName: &inputName,
-	}
-	muteStatus, err := client.Inputs.GetInputMute(muteReq)
-	if err != nil {
-		log.Fatalf("Failed to get mute status: %v", err)
-	}
-	fmt.Printf("  Muted: %v\n", muteStatus.InputMuted)
-
-	// Get volume
-	volReq := &inputs.GetInputVolumeParams{
-		InputName: &inputName,
-	}
-	volume, err := client.Inputs.GetInputVolume(volReq)
-	if err != nil {
-		log.Fatalf("Failed to get volume: %v", err)
-	}
-	fmt.Printf("  Volume: %.2f dB (mul: %.2f)\n", volume.InputVolumeDb, volume.InputVolumeMul)
-}
-```
-
 ## Common Test Scenarios
 
 ### Test 1: Basic Connection
 ```bash
-go run test_connection.go
+export OBS_PASSWORD="your_password"
+./streampi-server --test
 ```
 
-**Expected Output:**
-```
-✅ Connected to OBS!
-OBS Version: 30.0.0
-WebSocket Version: 5.4.2
-```
+**What it tests:**
+- WebSocket connection
+- Authentication
+- Version retrieval
+- Scene list
+- Current scene
+- Stream status
+- Recording status
+- Input list
 
-### Test 2: Scene Management
+### Test 2: Custom OBS Instance
 ```bash
-go run test_scenes.go
+./streampi-server \
+  --obs-host 192.168.1.100 \
+  --obs-port 4455 \
+  --obs-password mypassword \
+  --test
 ```
 
-**Expected Output:**
-```
-✅ Available Scenes:
-  1. Scene 1
-  2. Scene 2
-  3. Scene 3
-
-✅ Current Scene: Scene 1
-
-🔄 Switching to: Scene 2
-✅ Successfully switched to: Scene 2
-```
-
-### Test 3: Check Streaming Status
+### Test 3: Verbose Logging
 ```bash
-go run test_streaming.go
+export OBS_PASSWORD="your_password"
+./streampi-server --log-level debug --test
 ```
 
-**Expected Output:**
-```
-✅ Stream Status:
-  Active: false
-  Reconnecting: false
-
-✅ Recording Status:
-  Active: false
-  Paused: false
-```
-
-### Test 4: Audio Sources
+### Test 4: Run Server Normally
 ```bash
-go run test_audio.go
+export OBS_PASSWORD="your_password"
+./streampi-server
 ```
 
-**Expected Output:**
-```
-✅ Available Inputs:
-  1. Microphone (coreaudio_input_capture)
-  2. Desktop Audio (coreaudio_output_capture)
-
-🎤 Testing with input: Microphone
-  Muted: false
-  Volume: 0.00 dB (mul: 1.00)
-```
-
-## Comprehensive Test Suite
-
-Create `test_all.go`:
-```go
-package main
-
-import (
-	"fmt"
-	"log"
-	"time"
-
-	"github.com/andreykaipov/goobs"
-)
-
-func main() {
-	fmt.Println("🧪 OBS WebSocket Test Suite\n")
-
-	// Test 1: Connection
-	fmt.Println("1️⃣  Testing Connection...")
-	client, err := goobs.New("localhost:4455", goobs.WithPassword("your_password"))
-	if err != nil {
-		log.Fatalf("❌ Connection failed: %v", err)
-	}
-	defer client.Disconnect()
-	fmt.Println("✅ Connected!\n")
-
-	// Test 2: Version
-	fmt.Println("2️⃣  Testing Version...")
-	version, err := client.General.GetVersion()
-	if err != nil {
-		log.Fatalf("❌ Version check failed: %v", err)
-	}
-	fmt.Printf("✅ OBS %s, WebSocket %s\n\n", version.ObsVersion, version.ObsWebSocketVersion)
-
-	// Test 3: Scene List
-	fmt.Println("3️⃣  Testing Scene List...")
-	scenes, err := client.Scenes.GetSceneList()
-	if err != nil {
-		log.Fatalf("❌ Scene list failed: %v", err)
-	}
-	fmt.Printf("✅ Found %d scenes\n\n", len(scenes.Scenes))
-
-	// Test 4: Stream Status
-	fmt.Println("4️⃣  Testing Stream Status...")
-	streamStatus, err := client.Stream.GetStreamStatus()
-	if err != nil {
-		log.Fatalf("❌ Stream status failed: %v", err)
-	}
-	fmt.Printf("✅ Streaming: %v\n\n", streamStatus.OutputActive)
-
-	// Test 5: Recording Status
-	fmt.Println("5️⃣  Testing Recording Status...")
-	recStatus, err := client.Record.GetRecordStatus()
-	if err != nil {
-		log.Fatalf("❌ Record status failed: %v", err)
-	}
-	fmt.Printf("✅ Recording: %v\n\n", recStatus.OutputActive)
-
-	// Test 6: Input List
-	fmt.Println("6️⃣  Testing Input List...")
-	inputs, err := client.Inputs.GetInputList(nil)
-	if err != nil {
-		log.Fatalf("❌ Input list failed: %v", err)
-	}
-	fmt.Printf("✅ Found %d inputs\n\n", len(inputs.Inputs))
-
-	// Test 7: Event Handling
-	fmt.Println("7️⃣  Testing Events (will wait 5 seconds)...")
-	eventReceived := false
-	client.AddEventHandler("CurrentProgramSceneChanged", func(event any) {
-		eventReceived = true
-		fmt.Println("✅ Received scene change event!")
-	})
-	
-	fmt.Println("   Try switching scenes in OBS...")
-	time.Sleep(5 * time.Second)
-	if !eventReceived {
-		fmt.Println("⚠️  No events received (try switching scenes manually)")
-	}
-	fmt.Println()
-
-	// Test 8: Stats
-	fmt.Println("8️⃣  Testing Stats...")
-	stats, err := client.General.GetStats()
-	if err != nil {
-		log.Fatalf("❌ Stats failed: %v", err)
-	}
-	fmt.Printf("✅ FPS: %.2f, CPU: %.2f%%, Memory: %.2f MB\n\n", 
-		stats.ActiveFps, stats.CpuUsage, stats.MemoryUsage)
-
-	fmt.Println("✅ All tests passed!")
-}
-```
-
-Run:
-```bash
-go run test_all.go
-```
+Press Ctrl+C to stop.
 
 ## Troubleshooting
 
@@ -639,7 +317,10 @@ Error: authentication failed
 
 **Solutions:**
 1. Verify password in OBS: Tools → WebSocket Server Settings → Show Connect Info
-2. Check password in your code matches
+2. Check password matches:
+   ```bash
+   echo $OBS_PASSWORD
+   ```
 3. Disable authentication temporarily to test
 
 ### No Scenes Found
@@ -683,12 +364,11 @@ pgrep -f obs || echo "OBS not running"
 lsof -i :4455 || echo "Port 4455 not listening"
 
 # Test connection
-echo "Testing connection..." && \
-go run test_connection.go && \
-echo "✅ Success!" || echo "❌ Failed!"
+export OBS_PASSWORD="your_password"
+./streampi-server --test
 
-# Full test suite
-go run test_all.go
+# Test with verbose logging
+./streampi-server --log-level debug --test
 ```
 
 ## Testing Checklist
@@ -699,11 +379,10 @@ go run test_all.go
 - [ ] Password configured (if using authentication)
 - [ ] At least 2 scenes created in OBS
 - [ ] Audio sources configured in OBS
-- [ ] Can connect via Go test
+- [ ] Can connect via test mode
 - [ ] Can list scenes
 - [ ] Can get stream status
 - [ ] Can get input list
-- [ ] Events are received
 
 ## Next Steps
 
@@ -714,7 +393,7 @@ Once basic tests pass:
 4. Test streaming toggle (carefully!)
 5. Test recording toggle (carefully!)
 6. Test event handling
-7. Integration test with Stream-Pi server
+7. Integration test with Stream-Pi client
 
 ## Additional Resources
 
