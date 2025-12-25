@@ -3,39 +3,33 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend
 var assets embed.FS
 
+// loadIcon loads the Linux icon if available
+func loadIcon() []byte {
+	iconPath := filepath.Join("build", "linux", "icon.png")
+	iconData, err := os.ReadFile(iconPath)
+	if err != nil {
+		return []byte{} // Return empty if icon not found
+	}
+	return iconData
+}
+
 func main() {
 	// Create application instance
 	app := NewApp()
-
-	// Create menu
-	appMenu := menu.NewMenu()
-	
-	// File menu
-	fileMenu := appMenu.AddSubmenu("File")
-	fileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
-		runtime.Quit(app.ctx)
-	})
-	
-	// View menu
-	viewMenu := appMenu.AddSubmenu("View")
-	viewMenu.AddText("Developer Tools", keys.CmdOrCtrl("i"), func(_ *menu.CallbackData) {
-		runtime.WindowToggleMaximise(app.ctx)
-	})
 
 	// Create application window
 	err := wails.Run(&options.App{
@@ -51,14 +45,10 @@ func main() {
 		Bind: []interface{}{
 			app,
 		},
-		Menu: appMenu,
-		Debug: options.Debug{
-			OpenInspectorOnStartup: false,
-		},
 		Mac: &mac.Options{
 			TitleBar: &mac.TitleBar{
 				TitlebarAppearsTransparent: true,
-				HideTitle:                  false,
+				HideTitle:                  true,
 				HideTitleBar:               false,
 				FullSizeContent:            true,
 				UseToolbar:                 false,
@@ -72,7 +62,7 @@ func main() {
 			DisableWindowIcon:    false,
 		},
 		Linux: &linux.Options{
-			Icon:                []byte{},
+			Icon:                loadIcon(),
 			WindowIsTranslucent: false,
 		},
 	})
