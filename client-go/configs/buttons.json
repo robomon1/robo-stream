@@ -44,24 +44,11 @@
       "row": 0,
       "col": 3,
       "text": "Go Pro Cropped",
-      "color": "#33dbd8",
+      "color": "#3498db",
       "action": {
         "type": "switch_scene",
         "params": {
           "scene_name": "GoPro Cropped"
-        }
-      }
-    },
-    {
-      "id": "btn-1-0",
-      "row": 1,
-      "col": 0,
-      "text": "Test 1",
-      "color": "#36db33",
-      "action": {
-        "type": "set_transition",
-        "params": {
-          "transition_name": "Fade"
         }
       }
     }

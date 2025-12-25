@@ -1,0 +1,602 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #0a0a0a;
+    color: #fff;
+    overflow-x: hidden;
+}
+
+/* ============================================
+   DECK VIEW - Stream Deck Interface
+   ============================================ */
+
+.deck-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 30px;
+    background: #0a0a0a;
+}
+
+.deck-view.hidden {
+    display: none;
+}
+
+.deck-header {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.deck-title {
+    font-size: 1.8em;
+    font-weight: 300;
+    color: #888;
+    margin-bottom: 15px;
+}
+
+.status-bar {
+    display: flex;
+    gap: 25px;
+    justify-content: center;
+    padding: 12px 25px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    font-size: 0.9em;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-label {
+    color: #888;
+}
+
+.status-value {
+    color: #fff;
+    font-weight: 600;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #333;
+}
+
+.status-indicator.active {
+    background: #27ae60;
+    box-shadow: 0 0 12px #27ae60;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.recording {
+    background: #e74c3c;
+    box-shadow: 0 0 12px #e74c3c;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* Stream Deck Housing */
+.deck-container {
+    background: linear-gradient(145deg, #1a1a1a, #0f0f0f);
+    padding: 40px;
+    border-radius: 24px;
+    box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    margin-bottom: 30px;
+}
+
+/* Button Grid */
+.button-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.deck-button {
+    width: 80px;
+    height: 80px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(145deg, #2a2a2a, #1f1f1f);
+    color: white;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 
+        0 3px 6px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.3;
+}
+
+.deck-button:hover:not(.empty) {
+    transform: translateY(-1px);
+    box-shadow: 
+        0 5px 10px rgba(0, 0, 0, 0.7),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.deck-button:active:not(.empty) {
+    transform: translateY(1px);
+    box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.5),
+        inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.deck-button.empty {
+    background: linear-gradient(145deg, #151515, #0a0a0a);
+    color: #333;
+    cursor: default;
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.6),
+        0 1px 2px rgba(255, 255, 255, 0.05);
+}
+
+.deck-button .icon {
+    font-size: 2.2em;
+    margin-bottom: 4px;
+    line-height: 1;
+}
+
+.deck-button .text {
+    font-size: 0.95em;
+    word-wrap: break-word;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+/* Deck Controls */
+.deck-footer {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+}
+
+.btn-config {
+    background: #3498db;
+    border-color: #3498db;
+}
+
+.btn-config:hover {
+    background: #2980b9;
+    border-color: #2980b9;
+}
+
+/* ============================================
+   CONFIG VIEW - Configuration Interface
+   ============================================ */
+
+.config-view {
+    display: none;
+    min-height: 100vh;
+    padding: 40px 20px;
+    background: #f5f6f7;
+    color: #333;
+}
+
+.config-view.active {
+    display: block;
+}
+
+.config-container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.config-title {
+    font-size: 2em;
+    color: #2c3e50;
+}
+
+.config-nav {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-back {
+    background: #95a5a6;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-back:hover {
+    background: #7f8c8d;
+}
+
+.btn-save-all {
+    background: #27ae60;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-save-all:hover {
+    background: #229954;
+}
+
+/* Config Sections */
+.config-section {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    margin-bottom: 25px;
+}
+
+.config-section h2 {
+    font-size: 1.4em;
+    color: #2c3e50;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #ecf0f1;
+}
+
+/* Grid Configuration */
+.grid-config {
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+}
+
+.grid-input {
+    flex: 1;
+}
+
+.grid-input label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #555;
+    font-size: 0.95em;
+}
+
+.grid-input input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 1em;
+}
+
+.grid-input input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.btn-update-grid {
+    padding: 12px 24px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-update-grid:hover {
+    background: #2980b9;
+}
+
+/* Button List */
+.button-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.btn-add {
+    padding: 10px 20px;
+    background: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-add:hover {
+    background: #229954;
+}
+
+.button-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.button-card {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    border: 2px solid #e0e0e0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.button-card:hover {
+    border-color: #3498db;
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
+    transform: translateY(-2px);
+}
+
+.button-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.button-card-id {
+    font-size: 0.85em;
+    color: #7f8c8d;
+    font-weight: 600;
+}
+
+.button-card-color {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.button-card-title {
+    font-size: 1.1em;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 8px;
+}
+
+.button-card-action {
+    color: #7f8c8d;
+    font-size: 0.9em;
+}
+
+.button-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #95a5a6;
+}
+
+.button-empty-state p {
+    font-size: 1.1em;
+    margin-bottom: 20px;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.75);
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    padding: 35px;
+    max-width: 650px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    color: #333;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+    margin-bottom: 25px;
+}
+
+.modal-header h2 {
+    color: #2c3e50;
+    font-size: 1.6em;
+}
+
+.form-group {
+    margin-bottom: 22px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #34495e;
+    font-size: 0.95em;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1em;
+    transition: border-color 0.2s ease;
+    background: white;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-group small {
+    display: block;
+    margin-top: 6px;
+    color: #7f8c8d;
+    font-size: 0.85em;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #ecf0f1;
+}
+
+.form-actions button {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-form-save {
+    background: #3498db;
+    color: white;
+}
+
+.btn-form-save:hover {
+    background: #2980b9;
+}
+
+.btn-form-cancel {
+    background: #95a5a6;
+    color: white;
+}
+
+.btn-form-cancel:hover {
+    background: #7f8c8d;
+}
+
+.btn-form-delete {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-form-delete:hover {
+    background: #c0392b;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .deck-button {
+        width: 70px;
+        height: 70px;
+        font-size: 0.7em;
+    }
+}
+
+@media (max-width: 768px) {
+    .deck-container {
+        padding: 25px;
+    }
+    
+    .deck-button {
+        width: 60px;
+        height: 60px;
+        font-size: 0.65em;
+    }
+    
+    .button-grid {
+        gap: 8px;
+    }
+    
+    .config-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .deck-button {
+        width: 50px;
+        height: 50px;
+        font-size: 0.6em;
+    }
+    
+    .deck-button .icon {
+        font-size: 1.8em;
+    }
+    
+    .button-grid {
+        gap: 6px;
+    }
+    
+    .deck-container {
+        padding: 20px;
+    }
+}

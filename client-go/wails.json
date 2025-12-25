@@ -1,0 +1,29 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Stream-Pi Deck",
+  "outputfilename": "streampi-deck",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "author": {
+    "name": "Stream-Pi",
+    "email": ""
+  },
+  "info": {
+    "companyName": "Stream-Pi",
+    "productName": "Stream-Pi Deck",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright © 2024",
+    "comments": "OBS Studio controller"
+  },
+  "nsisType": "multiple",
+  "obfuscated": false,
+  "runNonNativeBuildScript": false,
+  "wailsjsdir": "./frontend",
+  "assetdir": "./frontend",
+  "reloaddirs": "frontend",
+  "build:dir": "build",
+  "debounceMS": 100
+}
