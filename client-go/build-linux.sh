@@ -21,7 +21,7 @@ case $ARCH in
         ;;
 esac
 
-echo "🐧 Building Stream-Pi Deck for $PLATFORM..."
+echo "🐧 Building Robo-Stream Deck for $PLATFORM..."
 
 wails build -platform $PLATFORM -clean
 
@@ -29,15 +29,15 @@ echo ""
 echo "✅ Build complete!"
 echo ""
 echo "To run:"
-echo "  ./build/bin/streampi-deck"
+echo "  ./build/bin/robostream-deck"
 echo ""
 echo "Config file will be saved to:"
 echo "  ~/.config/streampi/buttons.json"
 echo ""
 echo "To set server URL:"
 echo "  export SERVER_URL=http://10.91.108.170:8080"
-echo "  ./build/bin/streampi-deck"
+echo "  ./build/bin/robostream-deck"
 echo ""
 echo "For Raspberry Pi touchscreen fullscreen:"
-echo "  ./build/bin/streampi-deck &"
+echo "  ./build/bin/robostream-deck &"
 echo "  # Then click the fullscreen button in the app"

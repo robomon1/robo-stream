@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/robomon1/stream-pi-go/server-go/internal/api"
-	"github.com/robomon1/stream-pi-go/server-go/internal/obs"
-	"github.com/robomon1/stream-pi-go/server-go/internal/obs/actions"
+	"github.com/robomon1/robo-stream/server-go/internal/api"
+	"github.com/robomon1/robo-stream/server-go/internal/obs"
+	"github.com/robomon1/robo-stream/server-go/internal/obs/actions"
 	"github.com/sirupsen/logrus"
 )
 
@@ -37,7 +37,7 @@ func main() {
 
 	// Show version
 	if *showVersion {
-		fmt.Printf("Stream-Pi Server Go\n")
+		fmt.Printf("Robo-Stream Server Go\n")
 		fmt.Printf("Version: %s\n", Version)
 		fmt.Printf("Build Time: %s\n", BuildTime)
 		fmt.Printf("Git Commit: %s\n", GitCommit)
@@ -55,7 +55,7 @@ func main() {
 	}
 	logger.SetLevel(level)
 
-	logger.Info("🚀 Starting Stream-Pi Server Go")
+	logger.Info("🚀 Starting Robo-Stream Server Go")
 	logger.Infof("Version: %s", Version)
 
 	// Configure OBS connection
@@ -131,7 +131,7 @@ func main() {
 		}
 	}()
 
-	logger.Info("Stream-Pi Server running. Press Ctrl+C to stop.")
+	logger.Info("Robo-Stream Server running. Press Ctrl+C to stop.")
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)

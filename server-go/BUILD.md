@@ -46,19 +46,19 @@ go mod verify
 ### 2. Build for macOS (Native)
 ```bash
 # Build for your current architecture (Apple Silicon M1/M2/M3 or Intel)
-go build -o bin/streampi-server ./cmd/server
+go build -o bin/robostream-server ./cmd/server
 
 # Run the binary
-./bin/streampi-server
+./bin/robostream-server
 ```
 
 ### 3. Build for Specific macOS Architecture
 ```bash
 # For Apple Silicon (M1/M2/M3)
-GOOS=darwin GOARCH=arm64 go build -o bin/streampi-server-darwin-arm64 ./cmd/server
+GOOS=darwin GOARCH=arm64 go build -o bin/robostream-server-darwin-arm64 ./cmd/server
 
 # For Intel Macs
-GOOS=darwin GOARCH=amd64 go build -o bin/streampi-server-darwin-amd64 ./cmd/server
+GOOS=darwin GOARCH=amd64 go build -o bin/robostream-server-darwin-amd64 ./cmd/server
 ```
 
 ## Cross-Platform Compilation
@@ -71,7 +71,7 @@ Create a build script `build-all.sh`:
 #!/bin/bash
 
 # Server binary name
-APP_NAME="streampi-server"
+APP_NAME="robostream-server"
 VERSION="1.0.0"
 BUILD_DIR="bin"
 
@@ -125,37 +125,37 @@ chmod +x build-all.sh
 
 #### Linux x86_64
 ```bash
-GOOS=linux GOARCH=amd64 go build -o bin/streampi-server-linux-amd64 ./cmd/server
+GOOS=linux GOARCH=amd64 go build -o bin/robostream-server-linux-amd64 ./cmd/server
 ```
 
 #### Linux ARM64 (Raspberry Pi 4, 5)
 ```bash
-GOOS=linux GOARCH=arm64 go build -o bin/streampi-server-linux-arm64 ./cmd/server
+GOOS=linux GOARCH=arm64 go build -o bin/robostream-server-linux-arm64 ./cmd/server
 ```
 
 #### Linux ARMv7 (Raspberry Pi 3)
 ```bash
-GOOS=linux GOARCH=arm GOARM=7 go build -o bin/streampi-server-linux-armv7 ./cmd/server
+GOOS=linux GOARCH=arm GOARM=7 go build -o bin/robostream-server-linux-armv7 ./cmd/server
 ```
 
 #### macOS Intel (x86_64)
 ```bash
-GOOS=darwin GOARCH=amd64 go build -o bin/streampi-server-darwin-amd64 ./cmd/server
+GOOS=darwin GOARCH=amd64 go build -o bin/robostream-server-darwin-amd64 ./cmd/server
 ```
 
 #### macOS Apple Silicon (ARM64)
 ```bash
-GOOS=darwin GOARCH=arm64 go build -o bin/streampi-server-darwin-arm64 ./cmd/server
+GOOS=darwin GOARCH=arm64 go build -o bin/robostream-server-darwin-arm64 ./cmd/server
 ```
 
 #### Windows x86_64
 ```bash
-GOOS=windows GOARCH=amd64 go build -o bin/streampi-server-windows-amd64.exe ./cmd/server
+GOOS=windows GOARCH=amd64 go build -o bin/robostream-server-windows-amd64.exe ./cmd/server
 ```
 
 #### Windows ARM64
 ```bash
-GOOS=windows GOARCH=arm64 go build -o bin/streampi-server-windows-arm64.exe ./cmd/server
+GOOS=windows GOARCH=arm64 go build -o bin/robostream-server-windows-arm64.exe ./cmd/server
 ```
 
 ## Using Makefile
@@ -163,7 +163,7 @@ GOOS=windows GOARCH=arm64 go build -o bin/streampi-server-windows-arm64.exe ./cm
 Create a `Makefile`:
 
 ```makefile
-APP_NAME := streampi-server
+APP_NAME := robostream-server
 VERSION := 1.0.0
 BUILD_DIR := bin
 LDFLAGS := -s -w
@@ -245,16 +245,16 @@ make clean
 ### Smaller Binaries
 ```bash
 # Strip debug info and reduce binary size
-go build -ldflags="-s -w" -o bin/streampi-server ./cmd/server
+go build -ldflags="-s -w" -o bin/robostream-server ./cmd/server
 
 # Further compress with UPX (optional)
-upx --best --lzma bin/streampi-server
+upx --best --lzma bin/robostream-server
 ```
 
 ### Static Linking (Linux)
 ```bash
 # Create fully static binary (no external dependencies)
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -extldflags '-static'" -o bin/streampi-server-linux-amd64-static ./cmd/server
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -extldflags '-static'" -o bin/robostream-server-linux-amd64-static ./cmd/server
 ```
 
 ## Development Builds
@@ -262,7 +262,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -extldflags '-sta
 ### With Debug Info
 ```bash
 # Build with debug symbols and race detector
-go build -race -o bin/streampi-server-debug ./cmd/server
+go build -race -o bin/robostream-server-debug ./cmd/server
 ```
 
 ### With Version Info
@@ -272,7 +272,7 @@ VERSION="1.0.0"
 BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
 GIT_COMMIT=$(git rev-parse --short HEAD)
 
-go build -ldflags="-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" -o bin/streampi-server ./cmd/server
+go build -ldflags="-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" -o bin/robostream-server ./cmd/server
 ```
 
 ## Distribution
@@ -291,7 +291,7 @@ mkdir -p ${DIST_DIR}
 create_archive() {
     local platform=$1
     local binary=$2
-    local archive_name="streampi-server-${VERSION}-${platform}"
+    local archive_name="robostream-server-${VERSION}-${platform}"
     
     mkdir -p ${DIST_DIR}/${archive_name}
     cp bin/${binary} ${DIST_DIR}/${archive_name}/
@@ -308,11 +308,11 @@ create_archive() {
 }
 
 # Create archives for each platform
-create_archive "linux-amd64" "streampi-server-linux-amd64"
-create_archive "linux-arm64" "streampi-server-linux-arm64"
-create_archive "darwin-amd64" "streampi-server-darwin-amd64"
-create_archive "darwin-arm64" "streampi-server-darwin-arm64"
-create_archive "windows-amd64" "streampi-server-windows-amd64.exe"
+create_archive "linux-amd64" "robostream-server-linux-amd64"
+create_archive "linux-arm64" "robostream-server-linux-arm64"
+create_archive "darwin-amd64" "robostream-server-darwin-amd64"
+create_archive "darwin-arm64" "robostream-server-darwin-arm64"
+create_archive "windows-amd64" "robostream-server-windows-amd64.exe"
 
 echo "Release archives created in ${DIST_DIR}/"
 ```
@@ -322,13 +322,13 @@ echo "Release archives created in ${DIST_DIR}/"
 ### Verify Binary
 ```bash
 # Check binary info
-file bin/streampi-server-darwin-arm64
+file bin/robostream-server-darwin-arm64
 
 # Check size
 ls -lh bin/
 
 # Test run
-./bin/streampi-server-darwin-arm64 --version
+./bin/robostream-server-darwin-arm64 --version
 ```
 
 ### Test Cross-Compiled Binary
@@ -336,12 +336,12 @@ ls -lh bin/
 For Raspberry Pi:
 ```bash
 # Copy to Pi
-scp bin/streampi-server-linux-arm64 pi@raspberrypi:~/
+scp bin/robostream-server-linux-arm64 pi@raspberrypi:~/
 
 # SSH and test
 ssh pi@raspberrypi
-chmod +x streampi-server-linux-arm64
-./streampi-server-linux-arm64 --version
+chmod +x robostream-server-linux-arm64
+./robostream-server-linux-arm64 --version
 ```
 
 ## Troubleshooting
@@ -369,7 +369,7 @@ CGO_ENABLED=0 go build ...
 ### Issue: Binary too large
 **Solution**: Use build flags to reduce size
 ```bash
-go build -ldflags="-s -w" -o bin/streampi-server cmd/server/main.go
+go build -ldflags="-s -w" -o bin/robostream-server cmd/server/main.go
 ```
 
 ### Issue: Cross-compilation fails for ARM
@@ -416,12 +416,12 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
       run: |
-        go build -v -o bin/streampi-server-${{ matrix.goos }}-${{ matrix.goarch }} cmd/server/main.go
+        go build -v -o bin/robostream-server-${{ matrix.goos }}-${{ matrix.goarch }} cmd/server/main.go
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: streampi-server-${{ matrix.goos }}-${{ matrix.goarch }}
+        name: robostream-server-${{ matrix.goos }}-${{ matrix.goarch }}
         path: bin/
 ```
 
@@ -433,7 +433,7 @@ jobs:
 - Binaries may need to be signed for distribution
 - Use `lipo` to create universal binaries:
   ```bash
-  lipo -create bin/streampi-server-darwin-amd64 bin/streampi-server-darwin-arm64 -output bin/streampi-server-darwin-universal
+  lipo -create bin/robostream-server-darwin-amd64 bin/robostream-server-darwin-arm64 -output bin/robostream-server-darwin-universal
   ```
 
 ### Windows

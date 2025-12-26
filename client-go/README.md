@@ -24,14 +24,14 @@ Web-based client for controlling OBS Studio via the Stream-Pi server.
 ```bash
 cd client-go
 go mod download
-go build -o bin/streampi-client ./cmd/client
+go build -o bin/robostream-client ./cmd/client
 ```
 
 ### 2. Run the Client
 
 ```bash
 # Make sure server-go is running first!
-./bin/streampi-client
+./bin/robostream-client
 ```
 
 ### 3. Open in Browser
@@ -45,7 +45,7 @@ http://localhost:3000
 ### Command-Line Options
 
 ```bash
-./streampi-client \
+./robostream-client \
   --server-url http://localhost:8080 \
   --port 3000 \
   --config configs/buttons.json \
@@ -57,7 +57,7 @@ http://localhost:3000
 ```bash
 export SERVER_URL=http://localhost:8080
 export CLIENT_PORT=3000
-./streampi-client
+./robostream-client
 ```
 
 ### Configuration File
@@ -223,16 +223,16 @@ client-go/
 
 ```bash
 # Development build
-go build -o bin/streampi-client ./cmd/client
+go build -o bin/robostream-client ./cmd/client
 
 # Production build (with optimizations)
-go build -ldflags="-s -w" -o bin/streampi-client ./cmd/client
+go build -ldflags="-s -w" -o bin/robostream-client ./cmd/client
 
 # Cross-platform builds
-GOOS=darwin GOARCH=amd64 go build -o bin/streampi-client-mac-intel ./cmd/client
-GOOS=darwin GOARCH=arm64 go build -o bin/streampi-client-mac-arm ./cmd/client
-GOOS=linux GOARCH=amd64 go build -o bin/streampi-client-linux ./cmd/client
-GOOS=windows GOARCH=amd64 go build -o bin/streampi-client-windows.exe ./cmd/client
+GOOS=darwin GOARCH=amd64 go build -o bin/robostream-client-mac-intel ./cmd/client
+GOOS=darwin GOARCH=arm64 go build -o bin/robostream-client-mac-arm ./cmd/client
+GOOS=linux GOARCH=amd64 go build -o bin/robostream-client-linux ./cmd/client
+GOOS=windows GOARCH=amd64 go build -o bin/robostream-client-windows.exe ./cmd/client
 ```
 
 ## Troubleshooting
@@ -243,7 +243,7 @@ GOOS=windows GOARCH=amd64 go build -o bin/streampi-client-windows.exe ./cmd/clie
 
 **Solution:** Another process is using port 3000. Use a different port:
 ```bash
-./streampi-client --port 3001
+./robostream-client --port 3001
 ```
 
 ### Can't connect to server
@@ -253,7 +253,7 @@ GOOS=windows GOARCH=amd64 go build -o bin/streampi-client-windows.exe ./cmd/clie
 **Solution:** Make sure server-go is running:
 ```bash
 cd ../server-go
-./bin/streampi-server
+./bin/robostream-server
 ```
 
 ### Buttons not working

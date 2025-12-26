@@ -48,13 +48,13 @@ open ./build/bin/Stream-Pi\ Deck.app
 ### Linux/Raspberry Pi
 ```bash
 ./build-linux.sh
-./build/bin/streampi-deck
+./build/bin/robostream-deck
 ```
 
 ### Windows
 ```bash
 wails build
-.\build\bin\streampi-deck.exe
+.\build\bin\robostream-deck.exe
 ```
 
 ## Build All Platforms (Cross-Compilation)
@@ -67,16 +67,16 @@ From macOS or Linux, you can build for all platforms:
 
 This creates:
 - `build/bin/Stream-Pi Deck.app` (macOS Universal)
-- `build/bin/streampi-deck.exe` (Windows)
-- `build/bin/streampi-deck` (Linux amd64)
-- `build/bin/streampi-deck-arm64` (Linux ARM64 - Pi 4/5)
-- `build/bin/streampi-deck-arm` (Linux ARM - Pi 3)
+- `build/bin/robostream-deck.exe` (Windows)
+- `build/bin/robostream-deck` (Linux amd64)
+- `build/bin/robostream-deck-arm64` (Linux ARM64 - Pi 4/5)
+- `build/bin/robostream-deck-arm` (Linux ARM - Pi 3)
 
 Plus distribution packages:
-- `build/streampi-deck-1.0.0-linux-amd64.tar.gz`
-- `build/streampi-deck-1.0.0-linux-arm64.tar.gz`
-- `build/streampi-deck-1.0.0-linux-arm.tar.gz`
-- `build/streampi-deck-1.0.0-windows-amd64.zip`
+- `build/robostream-deck-1.0.0-linux-amd64.tar.gz`
+- `build/robostream-deck-1.0.0-linux-arm64.tar.gz`
+- `build/robostream-deck-1.0.0-linux-arm.tar.gz`
+- `build/robostream-deck-1.0.0-windows-amd64.zip`
 
 ## Building for Specific Platforms
 
@@ -124,7 +124,7 @@ wails build -platform linux/arm
 
 ```bash
 wails build
-./build/bin/streampi-deck
+./build/bin/robostream-deck
 ```
 
 DevTools will open automatically (Cmd+Option+I won't work in production builds).
@@ -135,13 +135,13 @@ DevTools will open automatically (Cmd+Option+I won't work in production builds).
 
 **From anywhere:**
 ```bash
-open ~/git/stream-pi-go/client-go/build/bin/Stream-Pi\ Deck.app
+open ~/git/robo-stream/client-go/build/bin/Stream-Pi\ Deck.app
 ```
 
 **Set server URL:**
 ```bash
 export SERVER_URL=http://10.91.108.170:8080
-open ~/git/stream-pi-go/client-go/build/bin/Stream-Pi\ Deck.app
+open ~/git/robo-stream/client-go/build/bin/Stream-Pi\ Deck.app
 ```
 
 Or configure it in the app: Settings → Server Configuration
@@ -150,27 +150,27 @@ Or configure it in the app: Settings → Server Configuration
 
 **Run directly:**
 ```bash
-cd ~/git/stream-pi-go/client-go
-./build/bin/streampi-deck
+cd ~/git/robo-stream/client-go
+./build/bin/robostream-deck
 ```
 
 **With server URL:**
 ```bash
 export SERVER_URL=http://10.91.108.170:8080
-./build/bin/streampi-deck
+./build/bin/robostream-deck
 ```
 
 **Fullscreen on Pi:**
 ```bash
-./build/bin/streampi-deck &
+./build/bin/robostream-deck &
 # Then click fullscreen button in app
 ```
 
 ### Windows
 
 ```bash
-cd C:\git\stream-pi-go\client-go
-.\build\bin\streampi-deck.exe
+cd C:\git\robo-stream\client-go
+.\build\bin\robostream-deck.exe
 ```
 
 ## Distribution Packages
@@ -182,7 +182,7 @@ The `.app` bundle contains everything needed:
 Stream-Pi Deck.app/
 ├── Contents/
 │   ├── MacOS/
-│   │   └── streampi-deck (binary with embedded assets)
+│   │   └── robostream-deck (binary with embedded assets)
 │   ├── Resources/
 │   └── Info.plist
 ```
@@ -216,25 +216,25 @@ Already created by `build-all-platforms.sh`:
 
 ```bash
 # Extract
-tar xzf streampi-deck-1.0.0-linux-amd64.tar.gz
+tar xzf robostream-deck-1.0.0-linux-amd64.tar.gz
 
 # Run
-./streampi-deck
+./robostream-deck
 ```
 
 **Create .deb package (Ubuntu/Debian/Raspberry Pi OS):**
 
 ```bash
-mkdir -p streampi-deck-deb/DEBIAN
-mkdir -p streampi-deck-deb/usr/local/bin
-mkdir -p streampi-deck-deb/usr/share/applications
+mkdir -p robostream-deck-deb/DEBIAN
+mkdir -p robostream-deck-deb/usr/local/bin
+mkdir -p robostream-deck-deb/usr/share/applications
 
 # Copy binary
-cp build/bin/streampi-deck streampi-deck-deb/usr/local/bin/
+cp build/bin/robostream-deck robostream-deck-deb/usr/local/bin/
 
 # Create control file
-cat > streampi-deck-deb/DEBIAN/control << EOF
-Package: streampi-deck
+cat > robostream-deck-deb/DEBIAN/control << EOF
+Package: robostream-deck
 Version: 1.0.0
 Section: utils
 Priority: optional
@@ -246,23 +246,23 @@ Description: OBS Studio controller with Stream Deck interface
 EOF
 
 # Create .desktop file
-cat > streampi-deck-deb/usr/share/applications/streampi-deck.desktop << EOF
+cat > robostream-deck-deb/usr/share/applications/robostream-deck.desktop << EOF
 [Desktop Entry]
 Name=Stream-Pi Deck
-Exec=/usr/local/bin/streampi-deck
-Icon=streampi-deck
+Exec=/usr/local/bin/robostream-deck
+Icon=robostream-deck
 Type=Application
 Categories=AudioVideo;
 EOF
 
 # Build package
-dpkg-deb --build streampi-deck-deb
-mv streampi-deck-deb.deb streampi-deck-1.0.0-amd64.deb
+dpkg-deb --build robostream-deck-deb
+mv robostream-deck-deb.deb robostream-deck-1.0.0-amd64.deb
 ```
 
 **Install .deb:**
 ```bash
-sudo dpkg -i streampi-deck-1.0.0-amd64.deb
+sudo dpkg -i robostream-deck-1.0.0-amd64.deb
 ```
 
 ### Windows - .zip
@@ -271,10 +271,10 @@ Already created by `build-all-platforms.sh`:
 
 ```bash
 # Extract
-unzip streampi-deck-1.0.0-windows-amd64.zip
+unzip robostream-deck-1.0.0-windows-amd64.zip
 
 # Run
-streampi-deck.exe
+robostream-deck.exe
 ```
 
 **Create installer with NSIS (advanced):**
@@ -289,13 +289,13 @@ wails build -nsis
 
 ```bash
 # On Raspberry Pi
-cd ~/git/stream-pi-go/client-go
+cd ~/git/robo-stream/client-go
 
 # Build for Pi architecture
 ./build-linux.sh
 
 # Or install from .deb
-sudo dpkg -i streampi-deck-1.0.0-arm64.deb
+sudo dpkg -i robostream-deck-1.0.0-arm64.deb
 ```
 
 ### Auto-start on Boot
@@ -303,11 +303,11 @@ sudo dpkg -i streampi-deck-1.0.0-arm64.deb
 ```bash
 mkdir -p ~/.config/autostart
 
-cat > ~/.config/autostart/streampi-deck.desktop << EOF
+cat > ~/.config/autostart/robostream-deck.desktop << EOF
 [Desktop Entry]
 Type=Application
 Name=Stream-Pi Deck
-Exec=/usr/local/bin/streampi-deck
+Exec=/usr/local/bin/robostream-deck
 X-GNOME-Autostart-enabled=true
 Environment="SERVER_URL=http://10.91.108.170:8080"
 EOF
@@ -411,7 +411,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: streampi-deck-${{ matrix.os }}
+          name: robostream-deck-${{ matrix.os }}
           path: client-go/build/bin/*
 ```
 

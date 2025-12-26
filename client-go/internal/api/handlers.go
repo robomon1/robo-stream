@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/robomon1/stream-pi-go/client-go/internal/client"
-	"github.com/robomon1/stream-pi-go/client-go/internal/config"
+	"github.com/robomon1/robo-stream/client-go/internal/client"
+	"github.com/robomon1/robo-stream/client-go/internal/config"
 	"github.com/sirupsen/logrus"
 )
 

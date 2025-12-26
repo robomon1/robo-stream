@@ -68,7 +68,7 @@ export LOG_LEVEL=info            # optional: debug, info, warn, error
 
 **2. Command-Line Flags:**
 ```bash
-./streampi-server \
+./robostream-server \
   --obs-host localhost \
   --obs-port 4455 \
   --obs-password your_password \
@@ -78,7 +78,7 @@ export LOG_LEVEL=info            # optional: debug, info, warn, error
 **3. Combination (flags override environment variables):**
 ```bash
 export OBS_PASSWORD=mypassword
-./streampi-server --obs-host 192.168.1.100 --test
+./robostream-server --obs-host 192.168.1.100 --test
 ```
 
 ### Default Values
@@ -97,10 +97,10 @@ export OBS_PASSWORD=mypassword
 export OBS_PASSWORD="your_password"
 
 # Run in test mode
-./streampi-server --test
+./robostream-server --test
 
 # Run normally
-./streampi-server
+./robostream-server
 ```
 
 ### Network Access
@@ -118,7 +118,7 @@ To access OBS from other machines on your network:
    ```
 3. Connect from other machines:
    ```bash
-   ./streampi-server --obs-host 192.168.1.100
+   ./robostream-server --obs-host 192.168.1.100
    ```
 
 ## Testing with curl
@@ -185,7 +185,7 @@ The server has a built-in test mode:
 
 ```bash
 export OBS_PASSWORD="your_password"
-./streampi-server --test
+./robostream-server --test
 ```
 
 **Expected Output:**
@@ -261,7 +261,7 @@ go run test_connection.go
 ### Test 1: Basic Connection
 ```bash
 export OBS_PASSWORD="your_password"
-./streampi-server --test
+./robostream-server --test
 ```
 
 **What it tests:**
@@ -276,7 +276,7 @@ export OBS_PASSWORD="your_password"
 
 ### Test 2: Custom OBS Instance
 ```bash
-./streampi-server \
+./robostream-server \
   --obs-host 192.168.1.100 \
   --obs-port 4455 \
   --obs-password mypassword \
@@ -286,13 +286,13 @@ export OBS_PASSWORD="your_password"
 ### Test 3: Verbose Logging
 ```bash
 export OBS_PASSWORD="your_password"
-./streampi-server --log-level debug --test
+./robostream-server --log-level debug --test
 ```
 
 ### Test 4: Run Server Normally
 ```bash
 export OBS_PASSWORD="your_password"
-./streampi-server
+./robostream-server
 ```
 
 Press Ctrl+C to stop.
@@ -365,10 +365,10 @@ lsof -i :4455 || echo "Port 4455 not listening"
 
 # Test connection
 export OBS_PASSWORD="your_password"
-./streampi-server --test
+./robostream-server --test
 
 # Test with verbose logging
-./streampi-server --log-level debug --test
+./robostream-server --log-level debug --test
 ```
 
 ## Testing Checklist

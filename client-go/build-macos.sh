@@ -3,7 +3,7 @@
 
 set -e
 
-echo "🍎 Building Stream-Pi Deck for macOS..."
+echo "🍎 Building Robo-Stream Deck for macOS..."
 
 wails build -platform darwin/universal -clean
 

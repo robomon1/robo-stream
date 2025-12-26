@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/robomon1/stream-pi-go/client-go/internal/client"
-	"github.com/robomon1/stream-pi-go/client-go/internal/config"
+	"github.com/robomon1/robo-stream/client-go/internal/client"
+	"github.com/robomon1/robo-stream/client-go/internal/config"
 	"github.com/sirupsen/logrus"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -34,19 +34,19 @@ func getConfigDir() (string, error) {
 
 	switch runtime.GOOS {
 	case "darwin": // macOS
-		configDir = filepath.Join(homeDir, "Library", "Application Support", "StreamPi")
+		configDir = filepath.Join(homeDir, "Library", "Application Support", "RoboStream")
 	case "windows":
 		appData := os.Getenv("APPDATA")
 		if appData == "" {
 			appData = filepath.Join(homeDir, "AppData", "Roaming")
 		}
-		configDir = filepath.Join(appData, "StreamPi")
+		configDir = filepath.Join(appData, "RoboStream")
 	default: // linux, freebsd, etc.
 		xdgConfig := os.Getenv("XDG_CONFIG_HOME")
 		if xdgConfig == "" {
 			xdgConfig = filepath.Join(homeDir, ".config")
 		}
-		configDir = filepath.Join(xdgConfig, "streampi")
+		configDir = filepath.Join(xdgConfig, "robostream")
 	}
 
 	// Ensure directory exists
@@ -88,7 +88,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.serverURL = serverURL
 
-	a.logger.Infof("Stream-Pi Deck starting...")
+	a.logger.Infof("Robo-Stream Deck starting...")
 	a.logger.Infof("Platform: %s/%s", runtime.GOOS, runtime.GOARCH)
 	a.logger.Infof("Connecting to server: %s", serverURL)
 	a.logger.Infof("Config file: %s", a.configPath)

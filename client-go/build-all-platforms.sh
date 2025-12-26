@@ -1,12 +1,12 @@
 #!/bin/bash
-# Build Stream-Pi Deck for all platforms
+# Build Robo-Stream Deck for all platforms
 
 set -e
 
 VERSION="1.0.0"
 BUILD_DIR="build"
 
-echo "🚀 Building Stream-Pi Deck v${VERSION} for all platforms..."
+echo "🚀 Building Robo-Stream Deck v${VERSION} for all platforms..."
 
 # Clean previous builds
 rm -rf ${BUILD_DIR}
@@ -43,15 +43,15 @@ echo ""
 echo "✅ Build complete! Binaries are in ${BUILD_DIR}/bin/"
 echo ""
 echo "macOS:"
-echo "  - Stream-Pi Deck.app (Universal)"
+echo "  - Robo-Stream Deck.app (Universal)"
 echo ""
 echo "Windows:"
-echo "  - streampi-deck.exe"
+echo "  - robostream-deck.exe"
 echo ""
 echo "Linux:"
-echo "  - streampi-deck (amd64)"
-echo "  - streampi-deck (arm64)"
-echo "  - streampi-deck (arm)"
+echo "  - robostream-deck (amd64)"
+echo "  - robostream-deck (arm64)"
+echo "  - robostream-deck (arm)"
 echo ""
 
 # Create distribution packages
@@ -68,27 +68,27 @@ echo "Creating Linux packages..."
 cd ${BUILD_DIR}/bin
 
 # Linux amd64
-if [ -f "streampi-deck" ]; then
-    tar czf ../streampi-deck-${VERSION}-linux-amd64.tar.gz streampi-deck
-    echo "  ✅ streampi-deck-${VERSION}-linux-amd64.tar.gz"
+if [ -f "robostream-deck" ]; then
+    tar czf ../robostream-deck-${VERSION}-linux-amd64.tar.gz robostream-deck
+    echo "  ✅ robostream-deck-${VERSION}-linux-amd64.tar.gz"
 fi
 
 # Linux arm64
-if [ -f "streampi-deck-arm64" ]; then
-    tar czf ../streampi-deck-${VERSION}-linux-arm64.tar.gz streampi-deck-arm64
-    echo "  ✅ streampi-deck-${VERSION}-linux-arm64.tar.gz"
+if [ -f "robostream-deck-arm64" ]; then
+    tar czf ../robostream-deck-${VERSION}-linux-arm64.tar.gz robostream-deck-arm64
+    echo "  ✅ robostream-deck-${VERSION}-linux-arm64.tar.gz"
 fi
 
 # Linux arm
-if [ -f "streampi-deck-arm" ]; then
-    tar czf ../streampi-deck-${VERSION}-linux-arm.tar.gz streampi-deck-arm
-    echo "  ✅ streampi-deck-${VERSION}-linux-arm.tar.gz"
+if [ -f "robostream-deck-arm" ]; then
+    tar czf ../robostream-deck-${VERSION}-linux-arm.tar.gz robostream-deck-arm
+    echo "  ✅ robostream-deck-${VERSION}-linux-arm.tar.gz"
 fi
 
 # Windows zip
-if [ -f "streampi-deck.exe" ]; then
-    zip -q ../streampi-deck-${VERSION}-windows-amd64.zip streampi-deck.exe
-    echo "  ✅ streampi-deck-${VERSION}-windows-amd64.zip"
+if [ -f "robostream-deck.exe" ]; then
+    zip -q ../robostream-deck-${VERSION}-windows-amd64.zip robostream-deck.exe
+    echo "  ✅ robostream-deck-${VERSION}-windows-amd64.zip"
 fi
 
 cd ../..

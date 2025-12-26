@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Stream-Pi Server - Cross-Platform Build Script
+# Robo-Stream Server - Cross-Platform Build Script
 # Builds binaries for all supported platforms
 
 set -e
@@ -17,7 +17,7 @@ if [ ! -d "cmd/server" ]; then
 fi
 
 # Configuration
-APP_NAME="streampi-server"
+APP_NAME="robostream-server"
 VERSION="${VERSION:-1.0.0}"
 BUILD_DIR="bin"
 CMD_PACKAGE="./cmd/server"
@@ -31,7 +31,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo "🚀 Building Stream-Pi Server v${VERSION} for all platforms..."
+echo "🚀 Building Robo-Stream Server v${VERSION} for all platforms..."
 echo ""
 
 # Create build directory

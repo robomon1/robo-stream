@@ -41,7 +41,7 @@ make linux-arm64     # Raspberry Pi 4/5
 make all            # All platforms
 
 # Or directly
-go build -o bin/streampi-server ./cmd/server
+go build -o bin/robostream-server ./cmd/server
 ```
 
 ## Quick Test
@@ -60,7 +60,7 @@ ls -la go.mod cmd/server/main.go
 go mod download
 
 # Build for current platform
-go build -o bin/streampi-server ./cmd/server
+go build -o bin/robostream-server ./cmd/server
 
 # Or use make
 make build
@@ -121,8 +121,8 @@ Building for windows/amd64... ✓
 Building for windows/arm64... ✓
 
 ✅ Build complete! Binaries:
-  streampi-server-linux-amd64         15M
-  streampi-server-linux-arm64         14M
+  robostream-server-linux-amd64         15M
+  robostream-server-linux-arm64         14M
   ...
 ```
 

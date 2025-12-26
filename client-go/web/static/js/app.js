@@ -1,4 +1,4 @@
-// Stream-Pi Deck Client
+// Robo-Stream Deck Client
 
 class StreamPiDeck {
     constructor() {

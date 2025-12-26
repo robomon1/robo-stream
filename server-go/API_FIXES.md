@@ -60,7 +60,7 @@ go mod tidy
 ./build-all.sh
 
 # Or build single platform
-go build -o bin/streampi-server ./cmd/server
+go build -o bin/robostream-server ./cmd/server
 ```
 
 ## Testing After Build
@@ -70,7 +70,7 @@ go build -o bin/streampi-server ./cmd/server
 export OBS_PASSWORD="your_password"
 
 # Run in test mode
-./bin/streampi-server --test
+./bin/robostream-server --test
 
 # Should output:
 # ✅ Connected to OBS!

@@ -35,14 +35,14 @@ echo "🔨 Attempting build..."
 mkdir -p bin
 
 # This is the CORRECT way to build
-go build -o bin/streampi-server-test ./cmd/server
+go build -o bin/robostream-server-test ./cmd/server
 
 if [ $? -eq 0 ]; then
     echo "✅ Build successful!"
     echo ""
-    ls -lh bin/streampi-server-test
+    ls -lh bin/robostream-server-test
     echo ""
-    echo "You can now run: ./bin/streampi-server-test --version"
+    echo "You can now run: ./bin/robostream-server-test --version"
 else
     echo "❌ Build failed"
     exit 1

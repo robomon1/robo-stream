@@ -61,23 +61,23 @@ This implementation uses OBS WebSocket 5.x, which has significant differences fr
 
 ```bash
 # Clone the repository
-cd stream-pi-go/server-go
+cd robo-stream/server-go
 
 # Install dependencies
 go mod download
 
 # Build
-go build -o streampi-server cmd/server/main.go
+go build -o robostream-server cmd/server/main.go
 
 # Run
-./streampi-server
+./robostream-server
 ```
 
 ### Using Docker
 
 ```bash
-docker build -t streampi-server .
-docker run -p 8080:8080 -v ./config:/config streampi-server
+docker build -t robostream-server .
+docker run -p 8080:8080 -v ./config:/config robostream-server
 ```
 
 ## Configuration
@@ -120,13 +120,13 @@ LOG_LEVEL=info
 
 ```bash
 # With default config
-./streampi-server
+./robostream-server
 
 # With custom config
-./streampi-server --config /path/to/config.yaml
+./robostream-server --config /path/to/config.yaml
 
 # With environment variables
-OBS_HOST=192.168.1.100 OBS_PASSWORD=secret ./streampi-server
+OBS_HOST=192.168.1.100 OBS_PASSWORD=secret ./robostream-server
 ```
 
 ### OBS Actions
@@ -339,7 +339,7 @@ go test -tags=integration ./...
 
 ```bash
 # Create systemd service
-sudo nano /etc/systemd/system/streampi-server.service
+sudo nano /etc/systemd/system/robostream-server.service
 
 [Unit]
 Description=Stream-Pi Server
@@ -349,15 +349,15 @@ After=network.target
 Type=simple
 User=streampi
 WorkingDirectory=/opt/streampi
-ExecStart=/opt/streampi/streampi-server
+ExecStart=/opt/streampi/robostream-server
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 
 # Enable and start
-sudo systemctl enable streampi-server
-sudo systemctl start streampi-server
+sudo systemctl enable robostream-server
+sudo systemctl start robostream-server
 ```
 
 ### Docker Compose
@@ -365,8 +365,8 @@ sudo systemctl start streampi-server
 ```yaml
 version: '3.8'
 services:
-  streampi-server:
-    image: streampi-server:latest
+  robostream-server:
+    image: robostream-server:latest
     ports:
       - "8080:8080"
     environment:

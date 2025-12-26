@@ -1,4 +1,4 @@
-APP_NAME := streampi-server
+APP_NAME := robostream-server
 VERSION := 1.0.0
 BUILD_DIR := bin
 CMD_PACKAGE := ./cmd/server
@@ -14,7 +14,7 @@ LDFLAGS := -s -w
 all: clean linux-amd64 linux-arm64 linux-armv7 darwin-amd64 darwin-arm64 windows-amd64
 
 help:
-	@echo "Stream-Pi Server Build Targets:"
+	@echo "Robo-Stream Server Build Targets:"
 	@echo ""
 	@echo "  make all          - Build for all major platforms"
 	@echo "  make build        - Build for current platform"
@@ -62,7 +62,7 @@ build:
 
 # Run on current platform
 run:
-	@echo "🚀 Running Stream-Pi Server..."
+	@echo "🚀 Running Robo-Stream Server..."
 	@go run $(CMD_PACKAGE)
 
 # Linux builds

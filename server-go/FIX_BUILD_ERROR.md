@@ -37,7 +37,7 @@ CMD_PACKAGE="./cmd/server"      # NEW - CORRECT
 cd ~/git/stream-pi/server-go
 
 # Extract just the build-all.sh from the tarball
-tar xzf ~/Downloads/stream-pi-go.tar.gz stream-pi-go/server-go/build-all.sh --strip-components=2
+tar xzf ~/Downloads/robo-stream.tar.gz robo-stream/server-go/build-all.sh --strip-components=2
 
 # Make it executable
 chmod +x build-all.sh
@@ -81,13 +81,13 @@ cd ~/git/stream-pi/server-go
 mkdir -p bin
 
 # Build for macOS Apple Silicon (your Mac)
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o bin/streampi-server-darwin-arm64 ./cmd/server
+GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o bin/robostream-server-darwin-arm64 ./cmd/server
 
 # Build for Raspberry Pi 4/5
-GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/streampi-server-linux-arm64 ./cmd/server
+GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/robostream-server-linux-arm64 ./cmd/server
 
 # Test it
-./bin/streampi-server-darwin-arm64 --version
+./bin/robostream-server-darwin-arm64 --version
 ```
 
 ## The Root Cause
@@ -158,8 +158,8 @@ cd ~/git/stream-pi
 rm -rf server-go
 
 # Extract fresh from tarball
-tar xzf ~/Downloads/stream-pi-go.tar.gz
-cd stream-pi-go/server-go
+tar xzf ~/Downloads/robo-stream.tar.gz
+cd robo-stream/server-go
 
 # Download dependencies
 go mod download

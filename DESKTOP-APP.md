@@ -108,12 +108,12 @@ open build/bin/Stream-Pi\ Deck.app
 
 **Windows:**
 ```bash
-.\build\bin\streampi-deck.exe
+.\build\bin\robostream-deck.exe
 ```
 
 **Linux/Raspberry Pi:**
 ```bash
-./build/bin/streampi-deck
+./build/bin/robostream-deck
 ```
 
 ## Configuration
@@ -124,7 +124,7 @@ Set the server URL via environment variable:
 
 ```bash
 export SERVER_URL=http://10.91.108.170:8080
-./streampi-deck
+./robostream-deck
 ```
 
 Or configure it in the app's Settings view.
@@ -157,7 +157,7 @@ Button config is stored in `configs/buttons.json` (same as before).
 
 ```bash
 # On Raspberry Pi
-cd ~/git/stream-pi-go/client-go
+cd ~/git/robo-stream/client-go
 
 # Install dependencies
 sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev
@@ -166,7 +166,7 @@ sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev
 wails build -platform linux/arm64
 
 # Run
-./build/bin/streampi-deck
+./build/bin/robostream-deck
 ```
 
 ### Autostart on Boot
@@ -175,11 +175,11 @@ Create a desktop entry:
 
 ```bash
 mkdir -p ~/.config/autostart
-cat > ~/.config/autostart/streampi-deck.desktop << EOF
+cat > ~/.config/autostart/robostream-deck.desktop << EOF
 [Desktop Entry]
 Type=Application
 Name=Stream-Pi Deck
-Exec=/home/pi/git/stream-pi-go/client-go/build/bin/streampi-deck
+Exec=/home/pi/git/robo-stream/client-go/build/bin/robostream-deck
 X-GNOME-Autostart-enabled=true
 EOF
 ```
