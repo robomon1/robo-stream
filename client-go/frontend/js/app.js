@@ -1,4 +1,4 @@
-// Stream-Pi Deck Desktop App
+// Robo-Stream Deck Desktop App
 
 class StreamPiDeck {
     constructor() {

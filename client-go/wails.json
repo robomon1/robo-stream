@@ -1,21 +1,21 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "Stream-Pi Deck",
-  "outputfilename": "streampi-deck",
+  "name": "Robo-Stream",
+  "outputfilename": "robostream-deck",
   "frontend:install": "",
   "frontend:build": "",
   "frontend:dev": "",
   "frontend:dev:watcher": "",
   "frontend:dev:serverUrl": "",
   "author": {
-    "name": "Stream-Pi",
+    "name": "robomon1",
     "email": ""
   },
   "info": {
-    "companyName": "Stream-Pi",
-    "productName": "Stream-Pi Deck",
+    "companyName": "Robo-Stream",
+    "productName": "Robo-Stream",
     "productVersion": "1.0.0",
-    "copyright": "Copyright © 2024",
+    "copyright": "Copyright © 2025",
     "comments": "OBS Studio controller"
   },
   "nsisType": "multiple",

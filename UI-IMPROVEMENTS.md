@@ -307,7 +307,7 @@ To test an option:
 
 1. **Edit CSS file:**
    ```bash
-   cd ~/git/stream-pi-go/client-go
+   cd ~/git/robo-stream/client-go
    nano frontend/css/style.css
    ```
 
@@ -318,7 +318,7 @@ To test an option:
 4. **Rebuild and test:**
    ```bash
    wails build
-   ./build/bin/streampi-deck
+   ./build/bin/robostream-deck
    ```
 
 5. **Toggle streaming/recording** to see the effect

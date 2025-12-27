@@ -1,4 +1,4 @@
-module github.com/robomon1/stream-pi-go/client-go
+module github.com/robomon1/robo-stream/client-go
 
 go 1.22.0
 

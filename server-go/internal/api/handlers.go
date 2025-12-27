@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/robomon1/stream-pi-go/server-go/internal/obs"
-	"github.com/robomon1/stream-pi-go/server-go/internal/obs/actions"
+	"github.com/robomon1/robo-stream/server-go/internal/obs"
+	"github.com/robomon1/robo-stream/server-go/internal/obs/actions"
 	"github.com/sirupsen/logrus"
 )
 

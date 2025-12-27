@@ -73,25 +73,25 @@ This will test:
 ### macOS (Apple Silicon)
 ```bash
 make darwin-arm64
-# Binary at: bin/streampi-server-darwin-arm64
+# Binary at: bin/robostream-server-darwin-arm64
 ```
 
 ### macOS (Intel)
 ```bash
 make darwin-amd64
-# Binary at: bin/streampi-server-darwin-amd64
+# Binary at: bin/robostream-server-darwin-amd64
 ```
 
 ### Linux (x86_64)
 ```bash
 make linux-amd64
-# Binary at: bin/streampi-server-linux-amd64
+# Binary at: bin/robostream-server-linux-amd64
 ```
 
 ### Raspberry Pi 4/5
 ```bash
 make linux-arm64
-# Binary at: bin/streampi-server-linux-arm64
+# Binary at: bin/robostream-server-linux-arm64
 ```
 
 ### All Platforms

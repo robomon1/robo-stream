@@ -33,7 +33,7 @@ func main() {
 
 	// Create application window
 	err := wails.Run(&options.App{
-		Title:  "Stream-Pi Deck",
+		Title:  "Robo-Stream",
 		Width:  800,
 		Height: 600,
 		AssetServer: &assetserver.Options{

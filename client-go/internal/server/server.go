@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/gorilla/mux"
-	"github.com/robomon1/stream-pi-go/client-go/internal/api"
-	"github.com/robomon1/stream-pi-go/client-go/internal/client"
-	"github.com/robomon1/stream-pi-go/client-go/internal/config"
+	"github.com/robomon1/robo-stream/client-go/internal/api"
+	"github.com/robomon1/robo-stream/client-go/internal/client"
+	"github.com/robomon1/robo-stream/client-go/internal/config"
 	"github.com/sirupsen/logrus"
 )
 
@@ -62,7 +62,7 @@ func (s *Server) setupRoutes() {
 // Start starts the web server - FORCED TO IPv4
 func (s *Server) Start() error {
 	addr := fmt.Sprintf("0.0.0.0:%d", s.port)
-	s.logger.Infof("Starting Stream-Pi Client web server on http://%s", addr)
+	s.logger.Infof("Starting Robo-Stream Client web server on http://%s", addr)
 	
 	// Create TCP4 listener to force IPv4
 	listener, err := net.Listen("tcp4", addr)

@@ -33,7 +33,7 @@ go run cmd/server/main.go
 
 ```bash
 # Build for current platform
-go build -o bin/streampi-server cmd/server/main.go
+go build -o bin/robostream-server cmd/server/main.go
 
 # Or use make
 make build
@@ -45,7 +45,7 @@ make build
 ## Command-Line Options
 
 ```bash
-streampi-server [options]
+robostream-server [options]
 
 Options:
   --obs-host string      OBS WebSocket host (default "localhost")
@@ -60,16 +60,16 @@ Options:
 
 ```bash
 # Connect to OBS with password
-./streampi-server --obs-password "mypassword"
+./robostream-server --obs-password "mypassword"
 
 # Connect to remote OBS
-./streampi-server --obs-host "192.168.1.100" --obs-password "secret"
+./robostream-server --obs-host "192.168.1.100" --obs-password "secret"
 
 # Debug mode
-./streampi-server --log-level debug
+./robostream-server --log-level debug
 
 # Test OBS connection
-./streampi-server --test --obs-password "mypassword"
+./robostream-server --test --obs-password "mypassword"
 ```
 
 ## Test Mode Output
@@ -107,7 +107,7 @@ export OBS_HOST="localhost"
 export OBS_PORT="4455"
 export OBS_PASSWORD="your_password"
 
-./streampi-server
+./robostream-server
 ```
 
 ## What's Next

@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/robomon1/stream-pi-go/client-go/internal/client"
-	"github.com/robomon1/stream-pi-go/client-go/internal/config"
-	"github.com/robomon1/stream-pi-go/client-go/internal/server"
+	"github.com/robomon1/robo-stream/client-go/internal/client"
+	"github.com/robomon1/robo-stream/client-go/internal/config"
+	"github.com/robomon1/robo-stream/client-go/internal/server"
 	"github.com/sirupsen/logrus"
 )
 
@@ -29,7 +29,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("Stream-Pi Client\n")
+		fmt.Printf("Robo-Stream Client\n")
 		fmt.Printf("Version: %s\n", Version)
 		fmt.Printf("Build Time: %s\n", BuildTime)
 		os.Exit(0)
@@ -46,7 +46,7 @@ func main() {
 	}
 	logger.SetLevel(level)
 
-	logger.Info("🎮 Starting Stream-Pi Client")
+	logger.Info("🎮 Starting Robo-Stream Client")
 	logger.Infof("Version: %s", Version)
 
 	// Load button configuration
