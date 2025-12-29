@@ -10,6 +10,14 @@ export function GetConfigurations() {
   return window['go']['main']['App']['GetConfigurations']();
 }
 
+export function GetCurrentConfiguration() {
+  return window['go']['main']['App']['GetCurrentConfiguration']();
+}
+
+export function GetOBSStatus() {
+  return window['go']['main']['App']['GetOBSStatus']();
+}
+
 export function GetServerURL() {
   return window['go']['main']['App']['GetServerURL']();
 }

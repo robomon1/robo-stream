@@ -219,6 +219,24 @@ func (a *App) GetServerURL() string {
 	return a.serverURL
 }
 
+// GetCurrentConfiguration returns the currently loaded configuration
+func (a *App) GetCurrentConfiguration() *config.ResolvedConfiguration {
+	return a.configuration
+}
+
+// GetOBSStatus returns current OBS status (recording, streaming, etc)
+func (a *App) GetOBSStatus() (map[string]interface{}, error) {
+	status, err := a.apiClient.GetOBSStatus()
+	if err != nil {
+		return map[string]interface{}{
+			"connected": false,
+			"streaming": false,
+			"recording": false,
+		}, err
+	}
+	return status, nil
+}
+
 // SetServerURL sets a new server URL and reconnects
 func (a *App) SetServerURL(url string) error {
 	a.serverURL = url

@@ -33,7 +33,7 @@ func main() {
 
 	// Create application window
 	err := wails.Run(&options.App{
-		Title:  "Stream-Pi Deck",
+		Title:  "Robo-Stream-Client",
 		Width:  800,
 		Height: 600,
 		AssetServer: &assetserver.Options{
@@ -47,10 +47,10 @@ func main() {
 		},
 		Mac: &mac.Options{
 			TitleBar: &mac.TitleBar{
-				TitlebarAppearsTransparent: true,
+				TitlebarAppearsTransparent: false,
 				HideTitle:                  true,
 				HideTitleBar:               false,
-				FullSizeContent:            true,
+				FullSizeContent:            false,
 				UseToolbar:                 false,
 			},
 			WebviewIsTransparent: true,

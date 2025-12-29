@@ -2,68 +2,60 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Robo-Stream Client</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Stream-Pi Client</title>
+    <link rel="stylesheet" href="css/app.css">
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="/wails/ipc.js"></script>
-    <script src="/wails/runtime.js"></script>
 </head>
 <body>
-    <!-- Connection Status Banner -->
-    <div id="connection-banner" class="connection-banner connecting">
-        <span class="connection-status">Connecting to server...</span>
+    <!-- Connection Banner -->
+    <div id="connection-banner" class="banner">
+        <span id="banner-message"></span>
     </div>
 
-    <!-- DECK VIEW - Main Stream Deck Interface -->
-    <div id="deck-view" class="deck-view">
-        <div class="deck-header">
-            <h1 class="deck-title">Robo-Stream</h1>
-            <div class="deck-info">
-                <span id="config-name" class="config-name">Loading...</span>
+    <!-- Top Bar - Compact -->
+    <header class="top-bar">
+        <div class="top-bar-left">
+            <div class="app-title">
+                <span class="title-main">Robo-Stream</span>
+                <span class="title-sub">Client</span>
             </div>
-            <div class="deck-controls">
-                <button id="btn-select-config" class="control-btn">
-                    <i data-lucide="list"></i>
-                    Select Config
-                </button>
-                <button id="btn-settings" class="control-btn">
-                    <i data-lucide="settings"></i>
-                    Settings
-                </button>
-            </div>
+            <span id="config-name" class="config-name">Default</span>
         </div>
-
-        <div class="status-bar">
-            <div class="status-item">
-                <span class="status-indicator" id="stream-indicator"></span>
-                <span class="status-label">Streaming</span>
-            </div>
-            <div class="status-item">
-                <span class="status-indicator" id="record-indicator"></span>
-                <span class="status-label">Recording</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">Scene:</span>
-                <span class="status-value" id="current-scene">-</span>
-            </div>
-        </div>
-
-        <div class="deck-container">
-            <div id="button-grid" class="button-grid">
-                <!-- Buttons will be dynamically generated here -->
-            </div>
-        </div>
-
-        <div class="deck-footer">
-            <button id="btn-fullscreen" class="btn">
+        <div class="top-bar-right">
+            <button id="btn-select-config" class="icon-btn" title="Select Configuration">
+                <i data-lucide="layout"></i>
+            </button>
+            <button id="btn-settings" class="icon-btn" title="Settings">
+                <i data-lucide="settings"></i>
+            </button>
+            <button id="btn-fullscreen" class="icon-btn" title="Toggle Fullscreen">
                 <i data-lucide="maximize"></i>
-                Fullscreen
             </button>
-            <button id="btn-reconnect" class="btn">
-                <i data-lucide="refresh-cw"></i>
-                Reconnect
-            </button>
+        </div>
+    </header>
+
+    <!-- Main Button Grid - Full Height -->
+    <main class="main-content">
+        <div id="button-grid" class="button-grid"></div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button id="btn-close-settings-modal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Server URL</label>
+                    <input type="text" id="input-server-url" placeholder="localhost:8080" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-update-server" class="btn-primary">Connect</button>
+            </div>
         </div>
     </div>
 
@@ -72,39 +64,14 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Select Configuration</h2>
-                <button id="btn-close-config-modal" class="close-btn">×</button>
+                <button id="btn-close-config-modal" class="close-btn">&times;</button>
             </div>
             <div class="modal-body">
-                <div id="config-list" class="config-list">
-                    <!-- Configurations will be listed here -->
-                </div>
+                <div id="config-list" class="config-list"></div>
             </div>
         </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Settings</h2>
-                <button id="btn-close-settings-modal" class="close-btn">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="settings-section">
-                    <h3>Server Connection</h3>
-                    <div class="form-group">
-                        <label>Server URL</label>
-                        <input type="text" id="server-url" placeholder="http://localhost:8080" />
-                    </div>
-                    <button id="btn-update-server" class="btn-primary">
-                        <i data-lucide="check"></i>
-                        Update & Reconnect
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="/js/app.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>

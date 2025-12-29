@@ -6,6 +6,10 @@ export function GetConfiguration():Promise<config.ResolvedConfiguration>;
 
 export function GetConfigurations():Promise<Array<config.Configuration>>;
 
+export function GetCurrentConfiguration():Promise<config.ResolvedConfiguration>;
+
+export function GetOBSStatus():Promise<Record<string, any>>;
+
 export function GetServerURL():Promise<string>;
 
 export function GetStatus():Promise<Record<string, any>>;
