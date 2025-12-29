@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "robo-stream-client",
+  "outputfilename": "robo-stream-client",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "author": {
+    "name": "robomon1",
+    "email": ""
+  },
+  "info": {
+    "companyName": "Robo-Stream",
+    "productName": "Robo-Stream Client",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright © 2025 robomon1",
+    "comments": "Touch-friendly OBS control client"
+  }
+}

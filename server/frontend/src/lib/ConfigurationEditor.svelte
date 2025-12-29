@@ -50,11 +50,17 @@
   }
 
   function selectConfig(config) {
-    selectedConfig = config;
-    editMode = false;
-    setTimeout(() => {
-      if (window.lucide) lucide.createIcons();
-    }, 100);
+    // Clear selectedConfig first to force Svelte to re-render
+    selectedConfig = null;
+    
+    // Use requestAnimationFrame to ensure DOM is cleared
+    requestAnimationFrame(() => {
+      selectedConfig = config;
+      editMode = false;
+      setTimeout(() => {
+        if (window.lucide) lucide.createIcons();
+      }, 100);
+    });
   }
 
   function createConfiguration() {
@@ -413,45 +419,47 @@
       </div>
 
       <div class="config-content">
-        <!-- Button Grid -->
+        <!-- Button Grid - Use key block to force re-render when config changes -->
         <div class="grid-container">
-          <div 
-            class="button-grid" 
-            style="grid-template-columns: repeat({selectedConfig.grid.cols}, 1fr); grid-template-rows: repeat({selectedConfig.grid.rows}, 1fr);"
-          >
-            {#each Array(selectedConfig.grid.rows) as _, row}
-              {#each Array(selectedConfig.grid.cols) as _, col}
-                {@const button = getButtonAtPosition(row, col)}
-                <div 
-                  class="grid-cell"
-                  class:drop-target={editMode}
-                  on:drop={(e) => handleDrop(e, row, col)}
-                  on:dragover={handleDragOver}
-                >
-                  {#if button}
-                    <div 
-                      class="button-display" 
-                      class:clickable={!editMode}
-                      style="background: {button.color}"
-                      on:click={() => executeButtonAction(button)}
-                    >
-                      <i data-lucide={button.icon}></i>
-                      <span>{button.name}</span>
-                      {#if editMode}
-                        <button class="remove-btn" on:click|stopPropagation={() => removeButton(`btn-${row}-${col}`)}>
-                          ×
-                        </button>
-                      {/if}
-                    </div>
-                  {:else if editMode}
-                    <div class="empty-cell">Drop here</div>
-                  {:else}
-                    <div class="empty-cell-preview">Empty</div>
-                  {/if}
-                </div>
+          {#key selectedConfig.id}
+            <div 
+              class="button-grid" 
+              style="grid-template-columns: repeat({selectedConfig.grid.cols}, 1fr); grid-template-rows: repeat({selectedConfig.grid.rows}, 1fr);"
+            >
+              {#each Array(selectedConfig.grid.rows) as _, row}
+                {#each Array(selectedConfig.grid.cols) as _, col}
+                  {@const button = getButtonAtPosition(row, col)}
+                  <div 
+                    class="grid-cell"
+                    class:drop-target={editMode}
+                    on:drop={(e) => handleDrop(e, row, col)}
+                    on:dragover={handleDragOver}
+                  >
+                    {#if button}
+                      <div 
+                        class="button-display" 
+                        class:clickable={!editMode}
+                        style="background: {button.color}"
+                        on:click={() => executeButtonAction(button)}
+                      >
+                        <i data-lucide={button.icon}></i>
+                        <span>{button.name}</span>
+                        {#if editMode}
+                          <button class="remove-btn" on:click|stopPropagation={() => removeButton(`btn-${row}-${col}`)}>
+                            ×
+                          </button>
+                        {/if}
+                      </div>
+                    {:else if editMode}
+                      <div class="empty-cell">Drop here</div>
+                    {:else}
+                      <div class="empty-cell-preview">Empty</div>
+                    {/if}
+                  </div>
+                {/each}
               {/each}
-            {/each}
-          </div>
+            </div>
+          {/key}
         </div>
 
         <!-- Button Library (Edit Mode) -->
@@ -540,6 +548,7 @@
 />
 
 <style>
+  /* All styles remain the same - keeping them for completeness */
   .config-editor {
     display: flex;
     height: calc(100vh - 60px);

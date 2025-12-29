@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/robomon1/robo-stream/server/internal/api"
 	"github.com/robomon1/robo-stream/server/internal/manager"
@@ -18,13 +19,15 @@ import (
 
 // App struct
 type App struct {
-	ctx            context.Context
-	storage        *storage.Storage
-	buttonManager  *manager.ButtonManager
-	configManager  *manager.ConfigManager
-	sessionManager *manager.SessionManager
-	obsManager     *manager.OBSManager
-	apiServer      *api.Server
+	ctx                 context.Context
+	storage             *storage.Storage
+	buttonManager       *manager.ButtonManager
+	configManager       *manager.ConfigManager
+	sessionManager      *manager.SessionManager
+	obsManager          *manager.OBSManager
+	apiServer           *api.Server
+	lastOBSConnected    bool
+	obsStatusInitialized bool
 }
 
 // NewApp creates a new App application struct
@@ -57,11 +60,14 @@ func (a *App) startup(ctx context.Context) {
 	// Initialize with some default data if needed
 	a.initializeDefaults()
 
+	// Start session cleanup routine
+	go a.sessionCleanupLoop()
+
 	// Auto-connect to OBS on startup
 	go func() {
 		log.Println("🔌 Attempting to auto-connect to OBS...")
 		savedConfig := a.GetSavedOBSConfig()
-		
+
 		// Try with saved config first
 		err := a.obsManager.Connect(savedConfig.URL, savedConfig.Password)
 		if err != nil {
@@ -81,6 +87,31 @@ func (a *App) startup(ctx context.Context) {
 	}()
 
 	log.Println("Robo-Stream Server started successfully")
+}
+
+// sessionCleanupLoop periodically cleans up inactive sessions
+func (a *App) sessionCleanupLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	// Initial cleanup on startup
+	inactiveTimeout := 30 * time.Minute
+	if err := a.sessionManager.CleanupInactive(inactiveTimeout); err != nil {
+		log.Printf("⚠️  Failed to cleanup inactive sessions: %v", err)
+	} else {
+		activeSessions := len(a.sessionManager.List())
+		log.Printf("🧹 Session cleanup complete (%d active sessions)", activeSessions)
+	}
+
+	// Periodic cleanup
+	for range ticker.C {
+		if err := a.sessionManager.CleanupInactive(inactiveTimeout); err != nil {
+			log.Printf("⚠️  Failed to cleanup inactive sessions: %v", err)
+		} else {
+			activeSessions := len(a.sessionManager.List())
+			log.Printf("🧹 Session cleanup complete (%d active sessions)", activeSessions)
+		}
+	}
 }
 
 // shutdown is called when the app is closing
@@ -255,7 +286,7 @@ func (a *App) UpdateClientConfig(sessionID, configID string) error {
 // OBS operations
 func (a *App) ConnectOBS(url, password string) error {
 	log.Printf("🔌 ConnectOBS called with RAW url: %q", url)
-	
+
 	// Workaround: Wails might be double-encoding the URL
 	// Decode it if needed
 	decodedURL := url
@@ -268,7 +299,7 @@ func (a *App) ConnectOBS(url, password string) error {
 			log.Printf("🔧 Decoded URL from %q to %q", url, decodedURL)
 		}
 	}
-	
+
 	log.Printf("🔌 Connecting to: %s", decodedURL)
 	err := a.obsManager.Connect(decodedURL, password)
 	if err != nil {
@@ -276,7 +307,7 @@ func (a *App) ConnectOBS(url, password string) error {
 		return err
 	}
 	log.Printf("✅ ConnectOBS succeeded")
-	
+
 	// Save credentials for next time
 	config := &models.OBSConfig{
 		URL:      decodedURL,
@@ -287,21 +318,45 @@ func (a *App) ConnectOBS(url, password string) error {
 	} else {
 		log.Println("💾 OBS config saved")
 	}
-	
+
+	// Reset state tracking so next status check logs
+	a.obsStatusInitialized = false
+
 	return nil
 }
 
 func (a *App) DisconnectOBS() error {
 	log.Println("🔌 DisconnectOBS called")
+	// Reset state tracking
+	a.obsStatusInitialized = false
 	return a.obsManager.Disconnect()
 }
 
 func (a *App) GetOBSStatus() map[string]interface{} {
+	currentlyConnected := a.obsManager.IsConnected()
+	
 	status := map[string]interface{}{
-		"connected": a.obsManager.IsConnected(),
+		"connected": currentlyConnected,
 		"url":       a.obsManager.GetURL(),
 	}
-	log.Printf("📊 GetOBSStatus: %+v", status)
+
+	// Log only on state changes or first call
+	if !a.obsStatusInitialized {
+		// First call - log it
+		log.Printf("📊 GetOBSStatus (initial): connected=%v", currentlyConnected)
+		a.obsStatusInitialized = true
+		a.lastOBSConnected = currentlyConnected
+	} else if currentlyConnected != a.lastOBSConnected {
+		// Connection state changed - log it
+		if currentlyConnected {
+			log.Printf("✅ OBS reconnected")
+		} else {
+			log.Printf("❌ OBS disconnected")
+		}
+		a.lastOBSConnected = currentlyConnected
+	}
+	// else: No state change, no logging (silent heartbeat)
+
 	return status
 }
 
@@ -310,7 +365,7 @@ func (a *App) GetSavedOBSConfig() *models.OBSConfig {
 	// Check environment variables first
 	envURL := os.Getenv("OBS_WEBSOCKET_URL")
 	envPassword := os.Getenv("OBS_WEBSOCKET_PASSWORD")
-	
+
 	if envURL != "" {
 		log.Printf("📋 Using OBS config from environment variables")
 		return &models.OBSConfig{
@@ -318,7 +373,7 @@ func (a *App) GetSavedOBSConfig() *models.OBSConfig {
 			Password: envPassword,
 		}
 	}
-	
+
 	// Fall back to saved config file
 	var config models.OBSConfig
 	if err := a.storage.LoadJSON("obs_config.json", &config); err != nil {
@@ -364,29 +419,29 @@ func (a *App) TestConfiguration(configID string) error {
 // getLocalIPs returns all non-loopback IPv4 addresses
 func (a *App) getLocalIPs() []string {
 	var ips []string
-	
+
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		log.Printf("Failed to get network interfaces: %v", err)
 		return ips
 	}
-	
+
 	for _, iface := range interfaces {
 		// Skip down interfaces
 		if iface.Flags&net.FlagUp == 0 {
 			continue
 		}
-		
+
 		// Skip loopback
 		if iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-		
+
 		addrs, err := iface.Addrs()
 		if err != nil {
 			continue
 		}
-		
+
 		for _, addr := range addrs {
 			var ip net.IP
 			switch v := addr.(type) {
@@ -395,16 +450,16 @@ func (a *App) getLocalIPs() []string {
 			case *net.IPAddr:
 				ip = v.IP
 			}
-			
+
 			// Skip loopback and IPv6
 			if ip == nil || ip.IsLoopback() || ip.To4() == nil {
 				continue
 			}
-			
+
 			ips = append(ips, ip.String())
 		}
 	}
-	
+
 	return ips
 }
 
@@ -415,7 +470,7 @@ func (a *App) GetServerInfo() map[string]interface{} {
 	for i, ip := range ips {
 		clientURLs[i] = fmt.Sprintf("http://%s:8080", ip)
 	}
-	
+
 	return map[string]interface{}{
 		"version":         "1.0.0",
 		"api_port":        8080,
