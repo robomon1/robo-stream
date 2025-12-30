@@ -119,7 +119,7 @@ open build/linux/icon.png
 ### 3. Build and Check App
 ```bash
 wails build
-open build/bin/Stream-Pi\ Deck.app
+open build/bin/Robo-Stream\ Client.app
 
 # The icon should have transparent background
 # Not white background
@@ -220,7 +220,7 @@ wails build -clean
 **3. Check app bundle:**
 ```bash
 # Check if icon is embedded correctly
-open build/bin/Stream-Pi\ Deck.app/Contents/Resources/
+open build/bin/Robo-Stream\ Client.app/Contents/Resources/
 # Should see iconfile.icns
 ```
 
@@ -308,7 +308,7 @@ EOF
 wails build -clean
 
 # Test
-open build/bin/Stream-Pi\ Deck.app
+open build/bin/Robo-Stream\ Client.app
 ```
 
 Your transparent background should now be preserved! 🎨✨

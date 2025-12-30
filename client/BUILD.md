@@ -1,6 +1,6 @@
-# Building & Packaging Stream-Pi Deck
+# Building & Packaging Robo-Stream Client
 
-Complete guide for building and distributing Stream-Pi Deck on all platforms.
+Complete guide for building and distributing Robo-Stream Client on all platforms.
 
 ## Config File Locations (OS-Standard)
 
@@ -42,7 +42,7 @@ sudo apt install build-essential libgtk-3-dev libwebkit2gtk-4.0-dev
 ### macOS
 ```bash
 ./build-macos.sh
-open ./build/bin/Stream-Pi\ Deck.app
+open ./build/bin/Robo-Stream\ Client.app
 ```
 
 ### Linux/Raspberry Pi
@@ -66,7 +66,7 @@ From macOS or Linux, you can build for all platforms:
 ```
 
 This creates:
-- `build/bin/Stream-Pi Deck.app` (macOS Universal)
+- `build/bin/Robo-Stream Client.app` (macOS Universal)
 - `build/bin/streampi-deck.exe` (Windows)
 - `build/bin/streampi-deck` (Linux amd64)
 - `build/bin/streampi-deck-arm64` (Linux ARM64 - Pi 4/5)
@@ -135,13 +135,13 @@ DevTools will open automatically (Cmd+Option+I won't work in production builds).
 
 **From anywhere:**
 ```bash
-open ~/git/robo-stream/client/build/bin/Stream-Pi\ Deck.app
+open ~/git/robo-stream/client/build/bin/Robo-Stream\ Client.app
 ```
 
 **Set server URL:**
 ```bash
 export SERVER_URL=http://10.91.108.170:8080
-open ~/git/robo-stream/client/build/bin/Stream-Pi\ Deck.app
+open ~/git/robo-stream/client/build/bin/Robo-Stream\ Client.app
 ```
 
 Or configure it in the app: Settings → Server Configuration
@@ -179,7 +179,7 @@ cd C:\git\robo-stream\client
 
 The `.app` bundle contains everything needed:
 ```
-Stream-Pi Deck.app/
+Robo-Stream Client.app/
 ├── Contents/
 │   ├── MacOS/
 │   │   └── streampi-deck (binary with embedded assets)
@@ -199,15 +199,15 @@ brew install create-dmg
 
 # Create DMG
 create-dmg \
-  --volname "Stream-Pi Deck" \
+  --volname "Robo-Stream Client" \
   --window-pos 200 120 \
   --window-size 800 400 \
   --icon-size 100 \
-  --icon "Stream-Pi Deck.app" 200 190 \
-  --hide-extension "Stream-Pi Deck.app" \
+  --icon "Robo-Stream Client.app" 200 190 \
+  --hide-extension "Robo-Stream Client.app" \
   --app-drop-link 600 185 \
-  "Stream-Pi-Deck-1.0.0.dmg" \
-  "build/bin/Stream-Pi Deck.app"
+  "Robo-Stream-Client-1.0.0.dmg" \
+  "build/bin/Robo-Stream Client.app"
 ```
 
 ### Linux - tar.gz
@@ -239,16 +239,16 @@ Version: 1.0.0
 Section: utils
 Priority: optional
 Architecture: amd64
-Maintainer: Stream-Pi <stream-pi@example.com>
-Description: OBS Studio controller with Stream Deck interface
+Maintainer: Robo-Stream <Robo-Stream@example.com>
+Description: OBS Studio controller with Stream Client interface
  Native desktop application for controlling OBS Studio
- with a touch-friendly Stream Deck interface.
+ with a touch-friendly Stream Client interface.
 EOF
 
 # Create .desktop file
 cat > streampi-deck-deb/usr/share/applications/streampi-deck.desktop << EOF
 [Desktop Entry]
-Name=Stream-Pi Deck
+Name=Robo-Stream Client
 Exec=/usr/local/bin/streampi-deck
 Icon=streampi-deck
 Type=Application
@@ -306,7 +306,7 @@ mkdir -p ~/.config/autostart
 cat > ~/.config/autostart/streampi-deck.desktop << EOF
 [Desktop Entry]
 Type=Application
-Name=Stream-Pi Deck
+Name=Robo-Stream Client
 Exec=/usr/local/bin/streampi-deck
 X-GNOME-Autostart-enabled=true
 Environment="SERVER_URL=http://10.91.108.170:8080"
@@ -326,7 +326,7 @@ xinput_calibrator
 
 ```bash
 # Remove quarantine attribute
-xattr -cr "Stream-Pi Deck.app"
+xattr -cr "Robo-Stream Client.app"
 ```
 
 ### Linux: Missing dependencies

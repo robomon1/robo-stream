@@ -21,7 +21,7 @@ var (
 
 func main() {
 	// Command-line flags
-	serverURL := flag.String("server-url", getEnvOrDefault("SERVER_URL", "http://localhost:8080"), "Stream-Pi server URL")
+	serverURL := flag.String("server-url", getEnvOrDefault("SERVER_URL", "http://localhost:8080"), "Robo-Stream server URL")
 	port := flag.Int("port", getEnvOrDefaultInt("CLIENT_PORT", 3000), "Web client port")
 	configFile := flag.String("config", "configs/buttons.json", "Button configuration file")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
@@ -30,7 +30,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("Stream-Pi Client\n")
+		fmt.Printf("Robo-Stream Client\n")
 		fmt.Printf("Version: %s\n", Version)
 		fmt.Printf("Build Time: %s\n", BuildTime)
 		os.Exit(0)
@@ -47,7 +47,7 @@ func main() {
 	}
 	logger.SetLevel(level)
 
-	logger.Info("🎮 Starting Stream-Pi Client")
+	logger.Info("🎮 Starting Robo-Stream Client")
 	logger.Infof("Version: %s", Version)
 
 	// Load button configuration
@@ -65,7 +65,7 @@ func main() {
 	logger.Infof("Loaded %d buttons in %dx%d grid", len(buttonConfig.Buttons), buttonConfig.Grid.Rows, buttonConfig.Grid.Cols)
 
 	// Create OBS client
-	logger.Infof("Connecting to Stream-Pi server at: %s", *serverURL)
+	logger.Infof("Connecting to Robo-Stream server at: %s", *serverURL)
 	obsClient := client.NewOBSClient(*serverURL, logger)
 
 	// Create and start web server

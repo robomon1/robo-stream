@@ -1,4 +1,4 @@
-# Stream-Pi Deck UI Improvements
+# Robo-Stream Client UI Improvements
 
 Visual improvements for 8" touchscreen display.
 

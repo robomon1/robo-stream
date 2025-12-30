@@ -1,4 +1,4 @@
-# Stream-Pi Deck - Desktop App
+# Robo-Stream Client - Desktop App
 
 Native desktop application for Mac, Windows, Linux, and Raspberry Pi using Wails v2.
 
@@ -17,7 +17,7 @@ The web-based client has been converted to a **native desktop app** using Wails:
 ### 🎯 Perfect For
 - **Raspberry Pi with touchscreen** - No browser overhead
 - **Tablets** - Full-screen touch control
-- **Dedicated Stream Deck displays** - Clean, professional interface
+- **Dedicated Stream Client displays** - Clean, professional interface
 - **Desktop use** - Native app experience
 
 ## Prerequisites
@@ -103,7 +103,7 @@ wails dev
 
 **macOS:**
 ```bash
-open build/bin/Stream-Pi\ Deck.app
+open build/bin/Robo-Stream\ Client.app
 ```
 
 **Windows:**
@@ -147,7 +147,7 @@ Button config is stored in `configs/buttons.json` (same as before).
 
 - Square 80x80px buttons
 - Configurable grid size
-- Two views (Deck / Config)
+- Two views (Client / Config)
 - Real-time OBS status
 - All OBS actions
 
@@ -178,7 +178,7 @@ mkdir -p ~/.config/autostart
 cat > ~/.config/autostart/streampi-deck.desktop << EOF
 [Desktop Entry]
 Type=Application
-Name=Stream-Pi Deck
+Name=Robo-Stream Client
 Exec=/home/pi/git/robo-stream/client/build/bin/streampi-deck
 X-GNOME-Autostart-enabled=true
 EOF
@@ -186,7 +186,7 @@ EOF
 
 ### Fullscreen Kiosk Mode
 
-For a dedicated Stream Deck display:
+For a dedicated Stream Client display:
 
 ```bash
 # Auto-login and start app in fullscreen
@@ -298,7 +298,7 @@ The fullscreen button calls `WindowToggleMaximise`. On some Linux systems, you m
 
 1. **Build for your platform** - `wails build`
 2. **Test on touchscreen** - Perfect for 7-8" displays
-3. **Set up autostart** - For dedicated Stream Deck
+3. **Set up autostart** - For dedicated Stream Client
 4. **Configure server URL** - Point to your OBS machine
 
 ## Future Enhancements

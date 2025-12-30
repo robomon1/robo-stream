@@ -1,12 +1,12 @@
 #!/bin/bash
-# Build Stream-Pi Deck for all platforms
+# Build Robo-Stream Client for all platforms
 
 set -e
 
 VERSION="1.0.0"
 BUILD_DIR="build"
 
-echo "🚀 Building Stream-Pi Deck v${VERSION} for all platforms..."
+echo "🚀 Building Robo-Stream Client v${VERSION} for all platforms..."
 
 # Clean previous builds
 rm -rf ${BUILD_DIR}
@@ -43,15 +43,15 @@ echo ""
 echo "✅ Build complete! Binaries are in ${BUILD_DIR}/bin/"
 echo ""
 echo "macOS:"
-echo "  - Stream-Pi Deck.app (Universal)"
+echo "  - robo-stream-client.app (Universal)"
 echo ""
 echo "Windows:"
-echo "  - streampi-deck.exe"
+echo "  - robo-stream-client.exe"
 echo ""
 echo "Linux:"
-echo "  - streampi-deck (amd64)"
-echo "  - streampi-deck (arm64)"
-echo "  - streampi-deck (arm)"
+echo "  - robo-stream-client (amd64)"
+echo "  - robo-stream-client (arm64)"
+echo "  - robo-stream-client (arm)"
 echo ""
 
 # Create distribution packages
@@ -68,27 +68,27 @@ echo "Creating Linux packages..."
 cd ${BUILD_DIR}/bin
 
 # Linux amd64
-if [ -f "streampi-deck" ]; then
-    tar czf ../streampi-deck-${VERSION}-linux-amd64.tar.gz streampi-deck
-    echo "  ✅ streampi-deck-${VERSION}-linux-amd64.tar.gz"
+if [ -f "robo-stream-client" ]; then
+    tar czf ../robo-stream-client-${VERSION}-linux-amd64.tar.gz robo-stream-client
+    echo "  ✅ robo-stream-client-${VERSION}-linux-amd64.tar.gz"
 fi
 
 # Linux arm64
-if [ -f "streampi-deck-arm64" ]; then
-    tar czf ../streampi-deck-${VERSION}-linux-arm64.tar.gz streampi-deck-arm64
-    echo "  ✅ streampi-deck-${VERSION}-linux-arm64.tar.gz"
+if [ -f "robo-stream-client-arm64" ]; then
+    tar czf ../robo-stream-client-${VERSION}-linux-arm64.tar.gz robo-stream-client-arm64
+    echo "  ✅ robo-stream-client-${VERSION}-linux-arm64.tar.gz"
 fi
 
 # Linux arm
-if [ -f "streampi-deck-arm" ]; then
-    tar czf ../streampi-deck-${VERSION}-linux-arm.tar.gz streampi-deck-arm
+if [ -f "robo-stream-client-arm" ]; then
+    tar czf ../streampi-deck-${VERSION}-linux-arm.tar.gz robo-stream-client-arm
     echo "  ✅ streampi-deck-${VERSION}-linux-arm.tar.gz"
 fi
 
 # Windows zip
-if [ -f "streampi-deck.exe" ]; then
-    zip -q ../streampi-deck-${VERSION}-windows-amd64.zip streampi-deck.exe
-    echo "  ✅ streampi-deck-${VERSION}-windows-amd64.zip"
+if [ -f "robo-stream-client.exe" ]; then
+    zip -q ../robo-stream-client-${VERSION}-windows-amd64.zip robo-stream-client.exe
+    echo "  ✅ robo-stream-client-${VERSION}-windows-amd64.zip"
 fi
 
 cd ../..
@@ -97,6 +97,6 @@ echo ""
 echo "🎉 All done! Distribution packages are in ${BUILD_DIR}/"
 echo ""
 echo "Config file locations by OS:"
-echo "  macOS:   ~/Library/Application Support/StreamPi/buttons.json"
-echo "  Linux:   ~/.config/streampi/buttons.json"
-echo "  Windows: %APPDATA%\\StreamPi\\buttons.json"
+echo "  macOS:   ~/Library/Application Support/RoboStream-Client/buttons.json"
+echo "  Linux:   ~/.config/robo-stream-client/buttons.json"
+echo "  Windows: %APPDATA%\\RoboStream-Client\\buttons.json"

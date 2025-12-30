@@ -11,6 +11,7 @@ import (
 
 	"client/internal/client"
 	"client/internal/config"
+
 	"github.com/sirupsen/logrus"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -35,19 +36,19 @@ func getConfigDir() (string, error) {
 
 	switch runtime.GOOS {
 	case "darwin": // macOS
-		configDir = filepath.Join(homeDir, "Library", "Application Support", "StreamPi")
+		configDir = filepath.Join(homeDir, "Library", "Application Support", "RoboStream-Client")
 	case "windows":
 		appData := os.Getenv("APPDATA")
 		if appData == "" {
 			appData = filepath.Join(homeDir, "AppData", "Roaming")
 		}
-		configDir = filepath.Join(appData, "StreamPi")
+		configDir = filepath.Join(appData, "RoboStream-Client")
 	default: // linux, freebsd, etc.
 		xdgConfig := os.Getenv("XDG_CONFIG_HOME")
 		if xdgConfig == "" {
 			xdgConfig = filepath.Join(homeDir, ".config")
 		}
-		configDir = filepath.Join(xdgConfig, "streampi")
+		configDir = filepath.Join(xdgConfig, "robo-stream-client")
 	}
 
 	if err := os.MkdirAll(configDir, 0755); err != nil {
@@ -96,7 +97,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.serverURL = loadServerURL(a.configDir)
 
-	a.logger.Infof("Stream-Pi Client starting...")
+	a.logger.Infof("Robo-Stream Client starting...")
 	a.logger.Infof("Platform: %s/%s", runtime.GOOS, runtime.GOARCH)
 	a.logger.Infof("Server URL: %s", a.serverURL)
 

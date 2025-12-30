@@ -69,6 +69,6 @@ func (s *Server) setupRoutes() {
 // Start starts the web server
 func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%d", s.port)
-	s.logger.Infof("Starting Stream-Pi Client web server on http://localhost%s", addr)
+	s.logger.Infof("Starting Robo-Stream Client web server on http://localhost%s", addr)
 	return http.ListenAndServe(addr, s.router)
 }

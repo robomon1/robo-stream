@@ -1,6 +1,6 @@
-# Stream-Pi Client (Go)
+# Robo-Stream Client (Go)
 
-Web-based client for controlling OBS Studio via the Stream-Pi server.
+Web-based client for controlling OBS Studio via the Robo-Stream server.
 
 ## Features
 
@@ -13,7 +13,7 @@ Web-based client for controlling OBS Studio via the Stream-Pi server.
 
 ## Prerequisites
 
-1. **Stream-Pi Server** must be running (server-go)
+1. **Robo-Stream Server** must be running (server-go)
 2. **OBS Studio** must be running with WebSocket enabled
 3. **Go 1.21+** for building
 
@@ -289,7 +289,7 @@ chmod 644 configs/buttons.json
 
 ## Contributing
 
-This is part of the Stream-Pi Go project. See the main repository for contribution guidelines.
+This is part of the Robo-Stream Go project. See the main repository for contribution guidelines.
 
 ## License
 
