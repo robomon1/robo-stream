@@ -1,6 +1,6 @@
-# Stream-Pi Go - Feature Status
+# Robo-Stream - Feature Status
 
-Complete feature comparison and roadmap for Stream-Pi Go.
+Complete feature comparison and roadmap for Robo-Stream.
 
 ## ✅ Implemented Features
 

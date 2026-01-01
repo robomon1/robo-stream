@@ -1,6 +1,6 @@
-# Building & Packaging Stream-Pi Deck
+# Building & Packaging Robo-Stream
 
-Complete guide for building and distributing Stream-Pi Deck on all platforms.
+Complete guide for building and distributing Robo-Stream on all platforms.
 
 ## Config File Locations (OS-Standard)
 
@@ -41,14 +41,28 @@ sudo apt install build-essential libgtk-3-dev libwebkit2gtk-4.0-dev
 
 ### macOS
 ```bash
-./build-macos.sh
-open ./build/bin/Stream-Pi\ Deck.app
+## Server
+cd server
+make build
+open ./build/bin/robo-stream-server.app
+
+## Client
+cd client
+make build
+open ./build/bin/robo-stream-client.app
 ```
 
 ### Linux/Raspberry Pi
 ```bash
-./build-linux.sh
-./build/bin/robostream-deck
+## Server
+cd server
+make build
+./build/bin/robo-stream-server
+
+## Client
+cd client
+make build
+./build/bin/robo-stream-client
 ```
 
 ### Windows
@@ -62,15 +76,21 @@ wails build
 From macOS or Linux, you can build for all platforms:
 
 ```bash
-./build-all-platforms.sh
+## Server
+cd server
+make build-all
+
+## Client
+cd client
+make build-all
 ```
 
 This creates:
-- `build/bin/Stream-Pi Deck.app` (macOS Universal)
-- `build/bin/robostream-deck.exe` (Windows)
-- `build/bin/robostream-deck` (Linux amd64)
-- `build/bin/robostream-deck-arm64` (Linux ARM64 - Pi 4/5)
-- `build/bin/robostream-deck-arm` (Linux ARM - Pi 3)
+- `build/bin/robo-stream-server.app` (macOS Universal)
+- `build/bin/robo-stream-server.exe` (Windows)
+- `build/bin/robo-stream-server` (Linux amd64)
+- `build/bin/robo-stream-server-arm64` (Linux ARM64 - Pi 4/5)
+- `build/bin/robo-stream-server-arm` (Linux ARM - Pi 3)
 
 Plus distribution packages:
 - `build/robostream-deck-1.0.0-linux-amd64.tar.gz`
@@ -179,7 +199,7 @@ cd C:\git\robo-stream\client-go
 
 The `.app` bundle contains everything needed:
 ```
-Stream-Pi Deck.app/
+Robo-Stream.app/
 ├── Contents/
 │   ├── MacOS/
 │   │   └── robostream-deck (binary with embedded assets)
@@ -199,15 +219,15 @@ brew install create-dmg
 
 # Create DMG
 create-dmg \
-  --volname "Stream-Pi Deck" \
+  --volname "Robo-Stream" \
   --window-pos 200 120 \
   --window-size 800 400 \
   --icon-size 100 \
-  --icon "Stream-Pi Deck.app" 200 190 \
-  --hide-extension "Stream-Pi Deck.app" \
+  --icon "Robo-Stream.app" 200 190 \
+  --hide-extension "Robo-Stream.app" \
   --app-drop-link 600 185 \
   "Stream-Pi-Deck-1.0.0.dmg" \
-  "build/bin/Stream-Pi Deck.app"
+  "build/bin/Robo-Stream.app"
 ```
 
 ### Linux - tar.gz
@@ -248,7 +268,7 @@ EOF
 # Create .desktop file
 cat > robostream-deck-deb/usr/share/applications/robostream-deck.desktop << EOF
 [Desktop Entry]
-Name=Stream-Pi Deck
+Name=Robo-Stream
 Exec=/usr/local/bin/robostream-deck
 Icon=robostream-deck
 Type=Application
@@ -306,7 +326,7 @@ mkdir -p ~/.config/autostart
 cat > ~/.config/autostart/robostream-deck.desktop << EOF
 [Desktop Entry]
 Type=Application
-Name=Stream-Pi Deck
+Name=Robo-Stream
 Exec=/usr/local/bin/robostream-deck
 X-GNOME-Autostart-enabled=true
 Environment="SERVER_URL=http://10.91.108.170:8080"
@@ -326,7 +346,7 @@ xinput_calibrator
 
 ```bash
 # Remove quarantine attribute
-xattr -cr "Stream-Pi Deck.app"
+xattr -cr "Robo-Stream.app"
 ```
 
 ### Linux: Missing dependencies

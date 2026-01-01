@@ -8,19 +8,24 @@ all: build
 # Setup icons - copy from icons/ to build/ directories
 setup-icons:
 	@echo "📦 Setting up server icons..."
+	@mkdir -p build
 	@mkdir -p build/darwin
 	@mkdir -p build/windows
 	@mkdir -p build/linux
-	@if [ -f icons/icon.icns ]; then \
-		cp icons/icon.icns build/darwin/; \
+	@if [ -f icons/appicon.png ]; then \
+		cp icons/appicon.png build/; \
+		echo "  ✓ appicon copied"; \
+	fi
+	@if [ -f icons/darwin/icon.icns ]; then \
+		cp icons/darwin/icon.icns build/darwin/; \
 		echo "  ✓ macOS icon copied"; \
 	fi
-	@if [ -f icons/icon.ico ]; then \
-		cp icons/icon.ico build/windows/; \
+	@if [ -f icons/windows/icon.ico ]; then \
+		cp icons/windows/icon.ico build/windows/; \
 		echo "  ✓ Windows icon copied"; \
 	fi
-	@if [ -f icons/icon.png ]; then \
-		cp icons/icon.png build/linux/; \
+	@if [ -f icons/linux/icon.png ]; then \
+		cp icons/linux/icon.png build/linux/; \
 		echo "  ✓ Linux icon copied"; \
 	fi
 	@echo "✅ Server icons ready"
@@ -53,7 +58,7 @@ build-all: setup-icons
 # Clean build artifacts (but keep icons/)
 clean:
 	@echo "🧹 Cleaning server build artifacts..."
-	rm -rf build/bin
+	rm -rf build
 	rm -rf frontend/dist
 	rm -rf frontend/node_modules
 	@echo "  Note: icons/ directory preserved"
