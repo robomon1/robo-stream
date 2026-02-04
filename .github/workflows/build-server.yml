@@ -1,0 +1,317 @@
+name: Build and Release Server
+
+on:
+  push:
+    tags:
+      - 'server-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-macos:
+    name: Build Server - macOS Universal
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install dependencies
+        run: |
+          cd server
+          go mod download
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/server-v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build macOS Universal Binary
+        run: |
+          cd server
+          wails build -platform darwin/universal -clean -nsis
+
+      - name: Create DMG
+        run: |
+          cd server/build/bin
+          
+          # Create temporary directory for DMG contents
+          mkdir -p dmg-temp
+          cp -R Robo-Stream-Server.app dmg-temp/
+          
+          # Create symlink to Applications
+          ln -s /Applications dmg-temp/Applications
+          
+          # Create DMG
+          hdiutil create -volname "Robo-Stream Server" \
+            -srcfolder dmg-temp \
+            -ov -format UDZO \
+            robo-stream-server-${{ steps.version.outputs.version }}.dmg
+          
+          # Cleanup
+          rm -rf dmg-temp
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-macos-universal
+          path: server/build/bin/robo-stream-server-${{ steps.version.outputs.version }}.dmg
+
+  build-linux:
+    name: Build Server - Linux
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/server-v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Install cross-compilation tools (arm64)
+        if: matrix.arch == 'arm64'
+        run: |
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Build Linux Binary
+        run: |
+          cd server
+          go mod download
+          wails build -platform linux/${{ matrix.arch }} -clean
+
+      - name: Create DEB package
+        run: |
+          cd server/build/bin
+          VERSION="${{ steps.version.outputs.version }}"
+          ARCH="${{ matrix.arch }}"
+          
+          # Create package structure
+          mkdir -p robo-stream-server_${VERSION}_${ARCH}/DEBIAN
+          mkdir -p robo-stream-server_${VERSION}_${ARCH}/usr/local/bin
+          mkdir -p robo-stream-server_${VERSION}_${ARCH}/usr/share/applications
+          mkdir -p robo-stream-server_${VERSION}_${ARCH}/usr/share/pixmaps
+          
+          # Copy binary
+          cp robo-stream-server robo-stream-server_${VERSION}_${ARCH}/usr/local/bin/
+          chmod +x robo-stream-server_${VERSION}_${ARCH}/usr/local/bin/robo-stream-server
+          
+          # Create control file
+          cat > robo-stream-server_${VERSION}_${ARCH}/DEBIAN/control << EOF
+          Package: robo-stream-server
+          Version: ${VERSION}
+          Section: net
+          Priority: optional
+          Architecture: ${ARCH}
+          Maintainer: Robo-Stream Team <robo@robo-stream.com>
+          Description: Robo-Stream Server - Remote OBS Control
+           Server application for remotely controlling OBS Studio
+           through the Robo-Stream client applications.
+          EOF
+          
+          # Create .desktop file
+          cat > robo-stream-server_${VERSION}_${ARCH}/usr/share/applications/robo-stream-server.desktop << EOF
+          [Desktop Entry]
+          Name=Robo-Stream Server
+          Comment=Remote OBS Control Server
+          Exec=/usr/local/bin/robo-stream-server
+          Terminal=false
+          Type=Application
+          Categories=Network;AudioVideo;
+          EOF
+          
+          # Build DEB
+          dpkg-deb --build robo-stream-server_${VERSION}_${ARCH}
+          
+          # Rename to standard format
+          mv robo-stream-server_${VERSION}_${ARCH}.deb robo-stream-server-${ARCH}-${VERSION}.deb
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-linux-${{ matrix.arch }}
+          path: server/build/bin/robo-stream-server-${{ matrix.arch }}-*.deb
+
+  build-windows:
+    name: Build Server - Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Get version
+        id: version
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $VERSION = "${{ github.event.inputs.version }}"
+          } else {
+            $VERSION = "${{ github.ref }}".Replace("refs/tags/server-v", "")
+          }
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: |
+          cd server
+          go mod download
+
+      - name: Build Windows Binary with NSIS installer
+        run: |
+          cd server
+          wails build -platform windows/amd64 -clean -nsis
+
+      - name: Rename Windows Installer
+        run: |
+          cd server/build/bin
+          $VERSION = "${{ steps.version.outputs.version }}"
+          # Wails creates installer as "Robo-Stream-Server-amd64-installer.exe"
+          if (Test-Path "Robo-Stream-Server-amd64-installer.exe") {
+            Rename-Item "Robo-Stream-Server-amd64-installer.exe" "robo-stream-server-x86_64-$VERSION.exe"
+          } elseif (Test-Path "Robo-Stream-Server-installer.exe") {
+            Rename-Item "Robo-Stream-Server-installer.exe" "robo-stream-server-x86_64-$VERSION.exe"
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-windows-amd64
+          path: server/build/bin/robo-stream-server-x86_64-*.exe
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-macos, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/server-v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=server-v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          cp artifacts/server-macos-universal/robo-stream-server-*.dmg release/ || echo "macOS DMG not found"
+          cp artifacts/server-linux-amd64/robo-stream-server-amd64-*.deb release/ || echo "Linux amd64 DEB not found"
+          cp artifacts/server-linux-arm64/robo-stream-server-arm64-*.deb release/ || echo "Linux arm64 DEB not found"
+          cp artifacts/server-windows-amd64/robo-stream-server-x86_64-*.exe release/ || echo "Windows EXE not found"
+          ls -la release/
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cat > release_notes.md << EOF
+          ## Robo-Stream Server ${VERSION}
+          
+          ### Downloads
+          
+          **macOS (Universal - Intel & Apple Silicon):**
+          - \`robo-stream-server-${VERSION}.dmg\`
+          
+          **Linux:**
+          - \`robo-stream-server-amd64-${VERSION}.deb\` (x86_64)
+          - \`robo-stream-server-arm64-${VERSION}.deb\` (ARM64)
+          
+          **Windows:**
+          - \`robo-stream-server-x86_64-${VERSION}.exe\` (x86_64 installer)
+          
+          ### Installation
+          
+          **macOS:**
+          1. Download and open the DMG file
+          2. Drag Robo-Stream Server to Applications folder
+          3. Launch from Applications
+          4. Right-click → Open (first time only)
+          
+          **Linux (Debian/Ubuntu):**
+          \`\`\`bash
+          sudo dpkg -i robo-stream-server-amd64-${VERSION}.deb
+          robo-stream-server
+          \`\`\`
+          
+          **Windows:**
+          1. Download and run the installer
+          2. Follow installation wizard
+          3. Launch from Start Menu
+          
+          ### Requirements
+          - OBS Studio 28.0+
+          - OBS WebSocket enabled
+          
+          ### What's New
+          See [CHANGELOG.md](https://github.com/robomon1/robo-stream/blob/main/CHANGELOG.md) for details.
+          EOF
+
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Robo-Stream Server ${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

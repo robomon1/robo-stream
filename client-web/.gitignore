@@ -30,6 +30,11 @@ android/build/
 ios/App/Pods/
 ios/App/build/
 
+# Code signing
+android/keystore.properties
+android/app/*.keystore
+android/app/*.jks
+
 # Electron
 electron-dist/
 out/

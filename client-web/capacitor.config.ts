@@ -1,8 +1,8 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.robomon.robostream',
-  appName: 'RoboStream',
+  appId: 'com.robostream.robostreamclient',
+  appName: 'Robo-Stream Client',
   webDir: 'dist',
   server: {
     androidScheme: 'https'

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">RoboStream</string>
-    <string name="title_activity_main">RoboStream</string>
-    <string name="package_name">com.robomon.robostream</string>
-    <string name="custom_url_scheme">com.robomon.robostream</string>
+    <string name="app_name">Robo-Stream Client</string>
+    <string name="title_activity_main">Robo-Stream Client</string>
+    <string name="package_name">com.robostream.robostreamclient</string>
+    <string name="custom_url_scheme">com.robostream.robostreamclient</string>
 </resources>

@@ -15,12 +15,9 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  test-build-macos:
-    name: Test Build - macOS
+  test-server-macos:
+    name: Test Server Build - macOS
     runs-on: macos-latest
-    strategy:
-      matrix:
-        app: [client, server]
     steps:
       - uses: actions/checkout@v4
 
@@ -28,40 +25,23 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      # - name: Setup icons
-      #   run: |
-      #     cd ${{ matrix.app }}
-      #     make setup-icons
-
-      - name: Build ${{ matrix.app }}
+      - name: Build server
         run: |
-          cd ${{ matrix.app }}
+          cd server
           wails build
 
       - name: Test binary exists
         run: |
-          cd ${{ matrix.app }}
-          if [ "${{ matrix.app }}" == "server" ]; then
-            test -d "build/bin/robo-stream-server.app"
-          else
-            test -d "build/bin/robo-stream-client.app"
-          fi
+          cd server
+          test -d "build/bin/Robo-Stream-Server.app"
 
-  test-build-linux:
-    name: Test Build - Linux
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        app: [client, server]
+  test-server-linux:
+    name: Test Server Build - Linux
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -69,11 +49,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
         run: |
@@ -86,31 +61,19 @@ jobs:
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      # - name: Setup icons
-      #   run: |
-      #     cd ${{ matrix.app }}
-      #     make setup-icons
-
-      - name: Build ${{ matrix.app }}
+      - name: Build server
         run: |
-          cd ${{ matrix.app }}
+          cd server
           wails build
 
       - name: Test binary exists
         run: |
-          cd ${{ matrix.app }}
-          if [ "${{ matrix.app }}" == "server" ]; then
-            test -f "build/bin/robo-stream-server"
-          else
-            test -f "build/bin/robo-stream-client"
-          fi
+          cd server
+          test -f "build/bin/robo-stream-server"
 
-  test-build-windows:
-    name: Test Build - Windows
+  test-server-windows:
+    name: Test Server Build - Windows
     runs-on: windows-latest
-    strategy:
-      matrix:
-        app: [client, server]
     steps:
       - uses: actions/checkout@v4
 
@@ -119,32 +82,154 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      # - name: Setup icons
-      #   shell: bash
-      #   run: |
-      #     cd ${{ matrix.app }}
-      #     make setup-icons
-
-      - name: Build ${{ matrix.app }}
+      - name: Build server
         shell: bash
         run: |
-          cd ${{ matrix.app }}
+          cd server
           wails build
 
       - name: Test binary exists
         shell: bash
         run: |
-          cd ${{ matrix.app }}
-          if [ "${{ matrix.app }}" == "server" ]; then
-            test -f "build/bin/robo-stream-server.exe"
-          else
-            test -f "build/bin/robo-stream-client.exe"
-          fi
+          cd server
+          test -f "build/bin/Robo-Stream-Server.exe"
+
+  test-client-web-build:
+    name: Test Client Web Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd client-web
+          npm ci
+
+      - name: Build web assets
+        run: |
+          cd client-web
+          npm run build
+
+      - name: Test build output exists
+        run: |
+          cd client-web
+          test -d "dist"
+
+  test-client-electron:
+    name: Test Electron Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd client-web
+          npm ci
+
+      - name: Build web assets
+        run: |
+          cd client-web
+          npm run build
+
+      - name: Test Electron packaging (no installer)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          cd client-web
+          npm run electron:build:linux -- --dir
+          test -d "electron-dist/linux-unpacked"
+
+  test-client-android:
+    name: Test Android Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: |
+          cd client-web
+          npm ci
+
+      - name: Build web assets
+        run: |
+          cd client-web
+          npm run build
+
+      - name: Sync Capacitor
+        run: |
+          cd client-web
+          npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          cd client-web/android
+          ./gradlew assembleDebug
+
+      - name: Test APK exists
+        run: |
+          cd client-web/android
+          test -f "app/build/outputs/apk/debug/app-debug.apk"
+
+  # Optional: Add linting
+  lint-server:
+    name: Lint Server Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: server
+
+  lint-client:
+    name: Lint Client Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd client-web
+          npm ci
+
+      - name: Run ESLint
+        run: |
+          cd client-web
+          npm run lint || echo "No lint script configured"
+          

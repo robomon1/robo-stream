@@ -66,6 +66,7 @@ async function connectAndLoad() {
     } catch (err) {
         console.error('Connection error:', err);
         showConnectionBanner('Failed to connect: ' + err.message, 'error');
+        setTimeout(() => hideConnectionBanner(), 2000);
     }
 }
 
@@ -495,6 +496,5 @@ function hideConnectionBanner() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await initializeNativeFeatures();
-  // ... rest of your code
-});
+    await initializeNativeFeatures();
+  });
