@@ -42,7 +42,8 @@ help:
 	@echo ""
 	@echo "Individual targets:"
 	@echo "  make server-mac       - Build server for macOS (universal)"
-	@echo "  make server-windows   - Build server for Windows"
+	@echo "  make server-mac-dmg   - Build server macOS DMG (signed & notarized)"
+	@echo "  make server-windows   - Build server for Windows (with NSIS installer)"
 	@echo "  make server-linux     - Build server for Linux"
 	@echo "  make client-mac       - Build client for macOS (unsigned)"
 	@echo "  make client-mac-signed - Build client for macOS (signed)"
@@ -95,17 +96,67 @@ mobile: android
 server-mac:
 	@echo "🔨 Building server for macOS (universal)..."
 	cd $(SERVER_DIR) && wails build -platform darwin/universal
+	@# Get version from wails.json
+	$(eval SERVER_VERSION := $(shell grep '"productVersion"' $(SERVER_DIR)/wails.json | sed 's/.*": "//;s/",//'))
+	@if [ -d "$(SERVER_BUILD)/robo-stream-server.app" ]; then \
+		mv $(SERVER_BUILD)/robo-stream-server.app $(SERVER_BUILD)/robo-stream-server-$(SERVER_VERSION)-universal.app; \
+		echo "📦 Renamed to: robo-stream-server-$(SERVER_VERSION)-universal.app"; \
+	fi
 	@echo "✅ Server macOS build complete"
 
 server-windows:
 	@echo "🔨 Building server for Windows..."
 	cd $(SERVER_DIR) && wails build -platform windows/amd64
+	@# Get version from wails.json
+	$(eval SERVER_VERSION := $(shell grep '"productVersion"' $(SERVER_DIR)/wails.json | sed 's/.*": "//;s/",//'))
+	@if [ -f "$(SERVER_BUILD)/robo-stream-server.exe" ]; then \
+		mv $(SERVER_BUILD)/robo-stream-server.exe $(SERVER_BUILD)/robo-stream-server-$(SERVER_VERSION)-amd64.exe; \
+		echo "📦 Renamed to: robo-stream-server-$(SERVER_VERSION)-amd64.exe"; \
+	fi
 	@echo "✅ Server Windows build complete"
 
 server-linux:
 	@echo "🔨 Building server for Linux..."
 	cd $(SERVER_DIR) && wails build -platform linux/amd64
+	@# Get version from wails.json
+	$(eval SERVER_VERSION := $(shell grep '"productVersion"' $(SERVER_DIR)/wails.json | sed 's/.*": "//;s/",//'))
+	@if [ -f "$(SERVER_BUILD)/robo-stream-server" ]; then \
+		mv $(SERVER_BUILD)/robo-stream-server $(SERVER_BUILD)/robo-stream-server-$(SERVER_VERSION)-amd64; \
+		echo "📦 Renamed to: robo-stream-server-$(SERVER_VERSION)-amd64"; \
+	fi
 	@echo "✅ Server Linux build complete"
+
+server-mac-dmg: server-mac
+	@echo "📦 Creating signed DMG for server..."
+	$(eval SERVER_VERSION := $(shell grep '"productVersion"' $(SERVER_DIR)/wails.json | sed 's/.*": "//;s/",//'))
+	@# Sign the .app bundle
+	@echo "🔐 Signing server app..."
+	codesign --deep --force --verify --verbose --sign "Developer ID Application" \
+		--options runtime \
+		$(SERVER_BUILD)/robo-stream-server-$(SERVER_VERSION)-universal.app
+	@# Create DMG
+	@echo "💿 Creating DMG..."
+	@mkdir -p $(SERVER_BUILD)/dmg-temp
+	@cp -r $(SERVER_BUILD)/robo-stream-server-$(SERVER_VERSION)-universal.app $(SERVER_BUILD)/dmg-temp/
+	@hdiutil create -volname "Robo-Stream Server" \
+		-srcfolder $(SERVER_BUILD)/dmg-temp \
+		-ov -format UDZO \
+		$(SERVER_BUILD)/robo-stream-server-$(SERVER_VERSION)-universal.dmg
+	@rm -rf $(SERVER_BUILD)/dmg-temp
+	@# Notarize DMG
+	@echo "📝 Submitting for notarization..."
+	@if [ -n "$$APPLE_ID" ]; then \
+		xcrun notarytool submit $(SERVER_BUILD)/robo-stream-server-$(SERVER_VERSION)-universal.dmg \
+			--apple-id "$$APPLE_ID" \
+			--password "$$APPLE_APP_SPECIFIC_PASSWORD" \
+			--team-id "$$APPLE_TEAM_ID" \
+			--wait; \
+		xcrun stapler staple $(SERVER_BUILD)/robo-stream-server-$(SERVER_VERSION)-universal.dmg; \
+		echo "✅ Notarization complete!"; \
+	else \
+		echo "⚠️  Skipping notarization (APPLE_ID not set)"; \
+	fi
+	@echo "✅ Server DMG complete: robo-stream-server-$(SERVER_VERSION)-universal.dmg"
 
 #==============================================================================
 # Client (Electron)

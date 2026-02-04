@@ -7,6 +7,7 @@ Icon[]
 
 # Thumbnails
 ._*
+Thumbs.db
 
 # Files that might appear in the root of a volume
 .DocumentRevisions-V100
@@ -74,6 +75,10 @@ venv
 
 # No build directories
 build
+server/build/
+client-web/electron-dist/
+client-web/android/app/build/
+client-web/ios/build/
 
 # Code signing certificates and keys
 certs/
@@ -82,3 +87,5 @@ certs/
 *.certSigningRequest
 *.mobileprovision
 
+# Release binaries
+releases/

@@ -30,6 +30,7 @@
   "build": {
     "appId": "com.robostream.robostreamclient",
     "productName": "Robo-Stream-Client",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
     "directories": {
       "output": "electron-dist",
       "buildResources": "electron-assets"
@@ -58,8 +59,14 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
       ],
       "icon": "electron-assets/icon.ico"
     },
