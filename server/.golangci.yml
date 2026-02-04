@@ -1,5 +1,12 @@
 run:
   timeout: 5m
+  tests: true
+  skip-dirs:
+    - frontend/dist
+    - frontend/node_modules
+    - build
+  skip-files:
+    - ".*_test.go$"
 
 linters:
   enable:
@@ -7,12 +14,30 @@ linters:
     - govet
     - errcheck
     - staticcheck
+    - unused
+    - gosimple
     - ineffassign
-  exclusions:
-    paths:
-      - frontend
-      - build
-      - node_modules
+    - typecheck
+
+linters-settings:
+  gofmt:
+    simplify: true
+  govet:
+    check-shadowing: true
+  errcheck:
+    check-blank: true
 
 issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-dirs:
+    - frontend/dist
+    - frontend/node_modules
+    - build
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  
