@@ -1,9 +1,6 @@
 name: Build and Release Server
 
 on:
-  push:
-    tags:
-      - 'server-v*'
   workflow_dispatch:
     inputs:
       version:
@@ -45,7 +42,7 @@ jobs:
       - name: Build macOS Universal Binary
         run: |
           cd server
-          wails build -platform darwin/universal -clean -nsis
+          wails build -platform darwin/universal -clean
 
       - name: Create DMG
         run: |
@@ -315,3 +312,4 @@ jobs:
             release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
