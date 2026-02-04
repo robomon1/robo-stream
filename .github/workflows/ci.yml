@@ -41,7 +41,7 @@ jobs:
 
   test-server-linux:
     name: Test Server Build - Linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -55,7 +55,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
+            libwebkit2gtk-4.0-dev \
             build-essential
 
       - name: Install Wails
@@ -99,7 +99,7 @@ jobs:
 
   test-client-web-build:
     name: Test Client Web Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -125,7 +125,7 @@ jobs:
 
   test-client-electron:
     name: Test Electron Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -154,7 +154,7 @@ jobs:
 
   test-client-android:
     name: Test Android Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -197,7 +197,7 @@ jobs:
   # Optional: Add linting
   lint-server:
     name: Lint Server Code
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     continue-on-error: true  # Don't fail CI if linting has issues
     steps:
       - uses: actions/checkout@v4
@@ -216,7 +216,7 @@ jobs:
 
   lint-client:
     name: Lint Client Code
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     continue-on-error: true  # Don't fail CI if linting has issues
     steps:
       - uses: actions/checkout@v4
@@ -235,4 +235,3 @@ jobs:
         run: |
           cd client-web
           npm run lint || echo "No lint script configured"
-          
