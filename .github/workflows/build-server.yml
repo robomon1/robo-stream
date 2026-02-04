@@ -72,7 +72,7 @@ jobs:
 
   build-linux:
     name: Build Server - Linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         arch: [amd64, arm64]
@@ -222,7 +222,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     needs: [build-macos, build-linux, build-windows]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
@@ -312,4 +312,3 @@ jobs:
             release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          

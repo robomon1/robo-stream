@@ -1,9 +1,6 @@
 name: Build and Release Client (iOS)
 
 on:
-  push:
-    tags:
-      - 'client-v*'
   workflow_dispatch:
     inputs:
       version:
@@ -186,7 +183,7 @@ jobs:
   create-release:
     name: Add to GitHub Release
     needs: [build-ios]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
