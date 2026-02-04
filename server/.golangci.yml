@@ -1,12 +1,6 @@
 run:
   timeout: 5m
   tests: true
-  skip-dirs:
-    - frontend/dist
-    - frontend/node_modules
-    - build
-  skip-files:
-    - ".*_test.go$"
 
 linters:
   enable:
@@ -18,26 +12,36 @@ linters:
     - gosimple
     - ineffassign
     - typecheck
+    - shadow
 
 linters-settings:
   gofmt:
     simplify: true
   govet:
-    check-shadowing: true
-  errcheck:
-    check-blank: true
+    enable:
+      - shadow
 
 issues:
   exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
   exclude-dirs:
-    - frontend/dist
-    - frontend/node_modules
+    - frontend
     - build
+  exclude-files:
+    - ".*_test.go$"
+  # Exclude embed directive errors (frontend/dist doesn't exist during linting)
+  exclude-rules:
+    - linters:
+        - typecheck
+      text: "pattern all:frontend/dist: no matching files found"
+    - path: main.go
+      linters:
+        - typecheck
+      text: "pattern all:frontend/dist"
 
 output:
-  format: colored-line-number
+  formats:
+    - format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
-  
