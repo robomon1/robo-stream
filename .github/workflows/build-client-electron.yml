@@ -91,10 +91,14 @@ jobs:
 
   build-linux:
     name: Build Client - Linux
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        arch: [x64, arm64]
+        include:
+          - arch: x64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-22.04-arm
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
