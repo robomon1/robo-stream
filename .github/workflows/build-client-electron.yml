@@ -145,9 +145,9 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           ARCH="${{ matrix.arch }}"
           
-          # Rename AppImage
+          # Rename AppImage (electron-builder creates .AppImage, we want .appimage)
           if [ "$ARCH" = "arm64" ]; then
-            TARGET_APPIMAGE="robo-stream-client-arm64-${VERSION}.AppImage"
+            TARGET_APPIMAGE="robo-stream-client-arm64-${VERSION}.appimage"
             SOURCE_APPIMAGE=$(find . -maxdepth 1 -name "*.AppImage" ! -name "$TARGET_APPIMAGE" -type f | head -1)
             if [ -n "$SOURCE_APPIMAGE" ]; then
               mv "$SOURCE_APPIMAGE" "$TARGET_APPIMAGE"
@@ -159,7 +159,7 @@ jobs:
               mv "$SOURCE_DEB" "$TARGET_DEB"
             fi
           else
-            TARGET_APPIMAGE="robo-stream-client-x86_64-${VERSION}.AppImage"
+            TARGET_APPIMAGE="robo-stream-client-x86_64-${VERSION}.appimage"
             SOURCE_APPIMAGE=$(find . -maxdepth 1 -name "*.AppImage" ! -name "$TARGET_APPIMAGE" -type f | head -1)
             if [ -n "$SOURCE_APPIMAGE" ]; then
               mv "$SOURCE_APPIMAGE" "$TARGET_APPIMAGE"
@@ -180,7 +180,7 @@ jobs:
         with:
           name: client-linux-${{ matrix.arch }}
           path: |
-            client-web/electron-dist/robo-stream-client-*-${{ steps.version.outputs.version }}.AppImage
+            client-web/electron-dist/robo-stream-client-*-${{ steps.version.outputs.version }}.appimage
             client-web/electron-dist/robo-stream-client-*-${{ steps.version.outputs.version }}.deb
 
   build-windows:
@@ -279,9 +279,9 @@ jobs:
           cp artifacts/client-macos-arm64/robo-stream-client-arm64-*.dmg release/ 2>/dev/null || echo "macOS arm64 not found"
           cp artifacts/client-macos-x64/robo-stream-client-x86_64-*.dmg release/ 2>/dev/null || echo "macOS x64 not found"
           # Linux packages
-          cp artifacts/client-linux-amd64/robo-stream-client-x86_64-*.AppImage release/ 2>/dev/null || echo "Linux x64 AppImage not found"
+          cp artifacts/client-linux-amd64/robo-stream-client-x86_64-*.appimage release/ 2>/dev/null || echo "Linux x64 appimage not found"
           cp artifacts/client-linux-amd64/robo-stream-client-x86_64-*.deb release/ 2>/dev/null || echo "Linux x64 DEB not found"
-          cp artifacts/client-linux-arm64/robo-stream-client-arm64-*.AppImage release/ 2>/dev/null || echo "Linux arm64 AppImage not found"
+          cp artifacts/client-linux-arm64/robo-stream-client-arm64-*.appimage release/ 2>/dev/null || echo "Linux arm64 appimage not found"
           cp artifacts/client-linux-arm64/robo-stream-client-arm64-*.deb release/ 2>/dev/null || echo "Linux arm64 DEB not found"
           # Windows installer
           cp artifacts/client-windows-amd64/robo-stream-client-x86_64-*.exe release/ 2>/dev/null || echo "Windows not found"
@@ -301,9 +301,9 @@ jobs:
           - \`robo-stream-client-x86_64-${VERSION}.dmg\` (Intel)
           
           **Linux:**
-          - \`robo-stream-client-x86_64-${VERSION}.AppImage\` (x86_64)
+          - \`robo-stream-client-x86_64-${VERSION}.appimage\` (x86_64)
           - \`robo-stream-client-x86_64-${VERSION}.deb\` (x86_64 Debian/Ubuntu)
-          - \`robo-stream-client-arm64-${VERSION}.AppImage\` (ARM64)
+          - \`robo-stream-client-arm64-${VERSION}.appimage\` (ARM64)
           - \`robo-stream-client-arm64-${VERSION}.deb\` (ARM64 Debian/Ubuntu)
           
           **Windows:**
@@ -326,8 +326,8 @@ jobs:
           
           **Linux (AppImage):**
           \`\`\`bash
-          chmod +x robo-stream-client-x86_64-${VERSION}.AppImage
-          ./robo-stream-client-x86_64-${VERSION}.AppImage
+          chmod +x robo-stream-client-x86_64-${VERSION}.appimage
+          ./robo-stream-client-x86_64-${VERSION}.appimage
           \`\`\`
           
           **Linux (DEB):**
@@ -360,3 +360,4 @@ jobs:
             release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
