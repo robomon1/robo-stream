@@ -1,0 +1,793 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 0.1.1)'
+        required: true
+        type: string
+      build_number:
+        description: 'Build number for mobile (integer, must increment)'
+        required: true
+        type: string
+      android_track:
+        description: 'Android release track'
+        required: true
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+        default: internal
+      ios_destination:
+        description: 'iOS upload destination'
+        required: true
+        type: choice
+        options:
+          - testflight
+          - appstore
+        default: testflight
+
+jobs:
+  # ============================================================================
+  # SERVER BUILDS
+  # ============================================================================
+  
+  build-server-macos:
+    name: Build Server - macOS Universal
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build macOS Universal Binary
+        run: |
+          cd server
+          wails build -platform darwin/universal -clean
+
+      - name: Create DMG
+        run: |
+          cd server/build/bin
+          
+          mkdir -p dmg-temp
+          cp -R Robo-Stream-Server.app dmg-temp/
+          ln -s /Applications dmg-temp/Applications
+          
+          hdiutil create -volname "Robo-Stream Server" \
+            -srcfolder dmg-temp \
+            -ov -format UDZO \
+            robo-stream-server-${{ steps.version.outputs.version }}.dmg
+          
+          rm -rf dmg-temp
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-macos-universal
+          path: server/build/bin/robo-stream-server-*.dmg
+
+  build-server-linux:
+    name: Build Server - Linux
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Build Linux Binary
+        run: |
+          cd server
+          go mod download
+          wails build -platform linux/${{ matrix.arch }} -clean
+
+      - name: Create DEB package
+        run: |
+          cd server/build/bin
+          VERSION="${{ steps.version.outputs.version }}"
+          ARCH="${{ matrix.arch }}"
+          
+          mkdir -p robo-stream-server_${VERSION}_${ARCH}/DEBIAN
+          mkdir -p robo-stream-server_${VERSION}_${ARCH}/usr/local/bin
+          mkdir -p robo-stream-server_${VERSION}_${ARCH}/usr/share/applications
+          
+          cp robo-stream-server robo-stream-server_${VERSION}_${ARCH}/usr/local/bin/
+          chmod +x robo-stream-server_${VERSION}_${ARCH}/usr/local/bin/robo-stream-server
+          
+          cat > robo-stream-server_${VERSION}_${ARCH}/DEBIAN/control << EOF
+          Package: robo-stream-server
+          Version: ${VERSION}
+          Section: net
+          Priority: optional
+          Architecture: ${ARCH}
+          Maintainer: Robo-Stream Team <robo@robo-stream.com>
+          Description: Robo-Stream Server - Remote OBS Control
+           Server application for remotely controlling OBS Studio
+           through the Robo-Stream client applications.
+          EOF
+          
+          cat > robo-stream-server_${VERSION}_${ARCH}/usr/share/applications/robo-stream-server.desktop << EOF
+          [Desktop Entry]
+          Name=Robo-Stream Server
+          Comment=Remote OBS Control Server
+          Exec=/usr/local/bin/robo-stream-server
+          Terminal=false
+          Type=Application
+          Categories=Network;AudioVideo;
+          EOF
+          
+          dpkg-deb --build robo-stream-server_${VERSION}_${ARCH}
+          mv robo-stream-server_${VERSION}_${ARCH}.deb robo-stream-server-${ARCH}-${VERSION}.deb
+
+      - name: Create AppImage
+        run: |
+          cd server/build/bin
+          VERSION="${{ steps.version.outputs.version }}"
+          ARCH="${{ matrix.arch }}"
+          
+          # Create AppDir structure
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          
+          # Copy binary
+          cp robo-stream-server AppDir/usr/bin/
+          
+          # Create .desktop file
+          cat > AppDir/usr/share/applications/robo-stream-server.desktop << EOF
+          [Desktop Entry]
+          Name=Robo-Stream Server
+          Comment=Remote OBS Control Server
+          Exec=robo-stream-server
+          Terminal=false
+          Type=Application
+          Categories=Network;AudioVideo;
+          Icon=robo-stream-server
+          EOF
+          
+          # Create AppRun script
+          cat > AppDir/AppRun << 'EOF'
+          #!/bin/bash
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+          exec "${HERE}/usr/bin/robo-stream-server" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+          
+          # Download appimagetool
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          
+          # Create AppImage
+          ARCH=${ARCH} ./appimagetool AppDir robo-stream-server-${ARCH}-${VERSION}.appimage
+          
+          # Cleanup
+          rm -rf AppDir appimagetool
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-linux-${{ matrix.arch }}
+          path: |
+            server/build/bin/robo-stream-server-${{ matrix.arch }}-*.deb
+            server/build/bin/robo-stream-server-${{ matrix.arch }}-*.appimage
+
+  build-server-windows:
+    name: Build Server - Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Get version
+        id: version
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $VERSION = "${{ github.event.inputs.version }}"
+          } else {
+            $VERSION = "${{ github.ref }}".Replace("refs/tags/v", "")
+          }
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: |
+          cd server
+          go mod download
+
+      - name: Build Windows Binary with NSIS installer
+        run: |
+          cd server
+          wails build -platform windows/amd64 -clean -nsis
+
+      - name: Rename Windows Installer
+        run: |
+          cd server/build/bin
+          $VERSION = "${{ steps.version.outputs.version }}"
+          if (Test-Path "Robo-Stream-Server-amd64-installer.exe") {
+            Rename-Item "Robo-Stream-Server-amd64-installer.exe" "robo-stream-server-x86_64-$VERSION.exe"
+          } elseif (Test-Path "Robo-Stream-Server-installer.exe") {
+            Rename-Item "Robo-Stream-Server-installer.exe" "robo-stream-server-x86_64-$VERSION.exe"
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-windows-amd64
+          path: server/build/bin/robo-stream-server-x86_64-*.exe
+
+  # ============================================================================
+  # DESKTOP CLIENT BUILDS
+  # ============================================================================
+
+  build-client-macos:
+    name: Build Client - macOS
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: |
+          cd client-web
+          npm ci
+
+      - name: Build web assets
+        run: |
+          cd client-web
+          npm run build
+
+      - name: Build Electron app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          cd client-web
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            npm run electron:build:mac -- --arm64
+          else
+            npm run electron:build:mac -- --x64
+          fi
+
+      - name: Rename DMG
+        run: |
+          cd client-web/electron-dist
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            TARGET_NAME="robo-stream-client-arm64-${VERSION}.dmg"
+            SOURCE_DMG=$(find . -maxdepth 1 -name "*.dmg" ! -name "$TARGET_NAME" -type f | head -1)
+            if [ -n "$SOURCE_DMG" ]; then
+              mv "$SOURCE_DMG" "$TARGET_NAME"
+            else
+              echo "Error: No DMG file found to rename"
+              ls -la
+              exit 1
+            fi
+          else
+            TARGET_NAME="robo-stream-client-x86_64-${VERSION}.dmg"
+            SOURCE_DMG=$(find . -maxdepth 1 -name "*.dmg" ! -name "$TARGET_NAME" -type f | head -1)
+            if [ -n "$SOURCE_DMG" ]; then
+              mv "$SOURCE_DMG" "$TARGET_NAME"
+            else
+              echo "Error: No DMG file found to rename"
+              ls -la
+              exit 1
+            fi
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-macos-${{ matrix.arch }}
+          path: client-web/electron-dist/robo-stream-client-*-${{ steps.version.outputs.version }}.dmg
+
+  build-client-linux:
+    name: Build Client - Linux
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: |
+          cd client-web
+          npm ci
+
+      - name: Build web assets
+        run: |
+          cd client-web
+          npm run build
+
+      - name: Build Electron app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          cd client-web
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            npm run electron:build:linux -- --arm64
+          else
+            npm run electron:build:linux -- --x64
+          fi
+
+      - name: Rename Linux packages
+        run: |
+          cd client-web/electron-dist
+          VERSION="${{ steps.version.outputs.version }}"
+          ARCH="${{ matrix.arch }}"
+          
+          if [ "$ARCH" = "arm64" ]; then
+            TARGET_APPIMAGE="robo-stream-client-arm64-${VERSION}.appimage"
+            SOURCE_APPIMAGE=$(find . -maxdepth 1 -name "*.AppImage" ! -name "$TARGET_APPIMAGE" -type f | head -1)
+            if [ -n "$SOURCE_APPIMAGE" ]; then
+              mv "$SOURCE_APPIMAGE" "$TARGET_APPIMAGE"
+            fi
+            
+            TARGET_DEB="robo-stream-client-arm64-${VERSION}.deb"
+            SOURCE_DEB=$(find . -maxdepth 1 -name "*_arm64.deb" ! -name "$TARGET_DEB" -type f | head -1)
+            if [ -n "$SOURCE_DEB" ]; then
+              mv "$SOURCE_DEB" "$TARGET_DEB"
+            fi
+          else
+            TARGET_APPIMAGE="robo-stream-client-x86_64-${VERSION}.appimage"
+            SOURCE_APPIMAGE=$(find . -maxdepth 1 -name "*.AppImage" ! -name "$TARGET_APPIMAGE" -type f | head -1)
+            if [ -n "$SOURCE_APPIMAGE" ]; then
+              mv "$SOURCE_APPIMAGE" "$TARGET_APPIMAGE"
+            fi
+            
+            TARGET_DEB="robo-stream-client-x86_64-${VERSION}.deb"
+            SOURCE_DEB=$(find . -maxdepth 1 -name "*_amd64.deb" ! -name "$TARGET_DEB" -type f | head -1)
+            if [ -n "$SOURCE_DEB" ]; then
+              mv "$SOURCE_DEB" "$TARGET_DEB"
+            fi
+          fi
+          
+          echo "Files in electron-dist:"
+          ls -la
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-linux-${{ matrix.arch }}
+          path: |
+            client-web/electron-dist/robo-stream-client-*-${{ steps.version.outputs.version }}.appimage
+            client-web/electron-dist/robo-stream-client-*-${{ steps.version.outputs.version }}.deb
+
+  build-client-windows:
+    name: Build Client - Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version
+        id: version
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $VERSION = "${{ github.event.inputs.version }}"
+          } else {
+            $VERSION = "${{ github.ref }}".Replace("refs/tags/v", "")
+          }
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: |
+          cd client-web
+          npm ci
+
+      - name: Build web assets
+        run: |
+          cd client-web
+          npm run build
+
+      - name: Build Electron app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          cd client-web
+          npm run electron:build:win
+
+      - name: Rename Windows installer
+        run: |
+          cd client-web/electron-dist
+          $VERSION = "${{ steps.version.outputs.version }}"
+          $TARGET_NAME = "robo-stream-client-x86_64-$VERSION.exe"
+          
+          $installer = Get-ChildItem -Filter "*.exe" | Where-Object { $_.Name -ne $TARGET_NAME } | Select-Object -First 1
+          
+          if ($installer) {
+            Write-Host "Renaming $($installer.Name) to $TARGET_NAME"
+            Rename-Item $installer.Name $TARGET_NAME
+          } else {
+            Write-Host "Error: No installer found to rename"
+            Get-ChildItem
+            exit 1
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-windows-amd64
+          path: client-web/electron-dist/robo-stream-client-x86_64-*.exe
+
+  # ============================================================================
+  # MOBILE BUILDS (Optional - require secrets)
+  # ============================================================================
+
+  build-client-android:
+    name: Build Client - Android
+    runs-on: ubuntu-22.04
+    # Only run if secrets are configured
+    if: github.event_name == 'workflow_dispatch' && vars.ENABLE_MOBILE_BUILDS == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: |
+          cd client-web
+          npm ci
+
+      - name: Build web assets
+        run: |
+          cd client-web
+          npm run build
+
+      - name: Sync Capacitor
+        run: |
+          cd client-web
+          npx cap sync android
+
+      - name: Decode keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > client-web/android/app/robostream-release.keystore
+
+      - name: Create keystore.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cat > client-web/android/keystore.properties << EOF
+          storeFile=robostream-release.keystore
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Update version in build.gradle
+        run: |
+          cd client-web/android
+          sed -i "s/versionName = \".*\"/versionName = \"${{ github.event.inputs.version }}\"/" variables.gradle
+          sed -i "s/versionCode = [0-9]*/versionCode = ${{ github.event.inputs.build_number }}/" app/build.gradle
+
+      - name: Build Android APK
+        run: |
+          cd client-web/android
+          ./gradlew assembleRelease
+
+      - name: Build Android App Bundle
+        run: |
+          cd client-web/android
+          ./gradlew bundleRelease
+
+      - name: Deploy to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.robostream.robostreamclient
+          releaseFiles: client-web/android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ github.event.inputs.android_track }}
+          status: completed
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-android-apk
+          path: client-web/android/app/build/outputs/apk/release/app-release.apk
+
+  # ============================================================================
+  # CREATE UNIFIED RELEASE
+  # ============================================================================
+
+  create-release:
+    name: Create GitHub Release
+    needs: 
+      - build-server-macos
+      - build-server-linux
+      - build-server-windows
+      - build-client-macos
+      - build-client-linux
+      - build-client-windows
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          
+          # Server builds
+          cp artifacts/server-macos-universal/robo-stream-server-*.dmg release/ 2>/dev/null || echo "Server macOS not found"
+          cp artifacts/server-linux-amd64/robo-stream-server-amd64-*.appimage release/ 2>/dev/null || echo "Server Linux amd64 appimage not found"
+          cp artifacts/server-linux-amd64/robo-stream-server-amd64-*.deb release/ 2>/dev/null || echo "Server Linux amd64 deb not found"
+          cp artifacts/server-linux-arm64/robo-stream-server-arm64-*.appimage release/ 2>/dev/null || echo "Server Linux arm64 appimage not found"
+          cp artifacts/server-linux-arm64/robo-stream-server-arm64-*.deb release/ 2>/dev/null || echo "Server Linux arm64 deb not found"
+          cp artifacts/server-windows-amd64/robo-stream-server-x86_64-*.exe release/ 2>/dev/null || echo "Server Windows not found"
+          
+          # Client desktop builds
+          cp artifacts/client-macos-arm64/robo-stream-client-arm64-*.dmg release/ 2>/dev/null || echo "Client macOS arm64 not found"
+          cp artifacts/client-macos-x64/robo-stream-client-x86_64-*.dmg release/ 2>/dev/null || echo "Client macOS x64 not found"
+          cp artifacts/client-linux-x64/robo-stream-client-x86_64-*.appimage release/ 2>/dev/null || echo "Client Linux x64 appimage not found"
+          cp artifacts/client-linux-x64/robo-stream-client-x86_64-*.deb release/ 2>/dev/null || echo "Client Linux x64 deb not found"
+          cp artifacts/client-linux-arm64/robo-stream-client-arm64-*.appimage release/ 2>/dev/null || echo "Client Linux arm64 appimage not found"
+          cp artifacts/client-linux-arm64/robo-stream-client-arm64-*.deb release/ 2>/dev/null || echo "Client Linux arm64 deb not found"
+          cp artifacts/client-windows-amd64/robo-stream-client-x86_64-*.exe release/ 2>/dev/null || echo "Client Windows not found"
+          
+          # Client mobile builds (if available)
+          cp artifacts/client-android-apk/app-release.apk release/robo-stream-client-${{ steps.version.outputs.version }}.apk 2>/dev/null || echo "Android APK not found (mobile builds may be disabled)"
+          
+          ls -la release/
+
+      - name: Generate release notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cat > release_notes.md << EOF
+          ## Robo-Stream v${VERSION}
+          
+          Complete release with server and client applications for all platforms.
+          
+          ### 🖥️ Server Downloads
+          
+          **macOS (Universal - Intel & Apple Silicon):**
+          - \`robo-stream-server-${VERSION}.dmg\`
+          
+          **Linux:**
+          - \`robo-stream-server-amd64-${VERSION}.appimage\` (x86_64 portable)
+          - \`robo-stream-server-amd64-${VERSION}.deb\` (x86_64 Debian/Ubuntu)
+          - \`robo-stream-server-arm64-${VERSION}.appimage\` (ARM64 portable)
+          - \`robo-stream-server-arm64-${VERSION}.deb\` (ARM64 Debian/Ubuntu)
+          
+          **Windows:**
+          - \`robo-stream-server-x86_64-${VERSION}.exe\` (x86_64 installer)
+          
+          ### 💻 Desktop Client Downloads
+          
+          **macOS:**
+          - \`robo-stream-client-arm64-${VERSION}.dmg\` (Apple Silicon - M1/M2/M3/M4)
+          - \`robo-stream-client-x86_64-${VERSION}.dmg\` (Intel)
+          
+          **Linux:**
+          - \`robo-stream-client-x86_64-${VERSION}.appimage\` (x86_64 portable)
+          - \`robo-stream-client-x86_64-${VERSION}.deb\` (x86_64 Debian/Ubuntu)
+          - \`robo-stream-client-arm64-${VERSION}.appimage\` (ARM64 portable)
+          - \`robo-stream-client-arm64-${VERSION}.deb\` (ARM64 Debian/Ubuntu)
+          
+          **Windows:**
+          - \`robo-stream-client-x86_64-${VERSION}.exe\` (x86_64 installer)
+          
+          ### 📱 Mobile Client
+          
+          **Android:**
+          - [Google Play Store](https://play.google.com/store/apps/details?id=com.robostream.robostreamclient)
+          - \`robo-stream-client-${VERSION}.apk\` (sideload)
+          
+          **iOS:**
+          - [Apple App Store](https://apps.apple.com/app/robo-stream-client)
+          
+          ---
+          
+          ### 📦 Installation
+          
+          #### Server
+          
+          **macOS:**
+          1. Download and open DMG
+          2. Drag to Applications
+          3. Right-click → Open (first time)
+          
+          **Linux (AppImage):**
+          \`\`\`bash
+          chmod +x robo-stream-server-amd64-${VERSION}.appimage
+          ./robo-stream-server-amd64-${VERSION}.appimage
+          \`\`\`
+          
+          **Linux (DEB):**
+          \`\`\`bash
+          sudo dpkg -i robo-stream-server-amd64-${VERSION}.deb
+          robo-stream-server
+          \`\`\`
+          
+          **Windows:**
+          1. Download and run installer
+          2. Follow setup wizard
+          
+          #### Desktop Client
+          
+          **macOS:** Same as server
+          
+          **Linux (AppImage):**
+          \`\`\`bash
+          chmod +x robo-stream-client-x86_64-${VERSION}.appimage
+          ./robo-stream-client-x86_64-${VERSION}.appimage
+          \`\`\`
+          
+          **Linux (DEB):**
+          \`\`\`bash
+          sudo dpkg -i robo-stream-client-x86_64-${VERSION}.deb
+          \`\`\`
+          
+          **Windows:** Run installer
+          
+          #### Mobile
+          Install from app stores or sideload APK on Android.
+          
+          ---
+          
+          ### ✅ Requirements
+          
+          - **Server:** OBS Studio 28.0+, OBS WebSocket enabled
+          - **Client:** Server running on same network
+          
+          ### 📖 Documentation
+          
+          - [Quick Start Guide](https://github.com/robomon1/robo-stream/blob/main/QUICKSTART.md)
+          - [Full Documentation](https://github.com/robomon1/robo-stream)
+          
+          ### 🐛 Known Issues
+          
+          See [Issues](https://github.com/robomon1/robo-stream/issues) for current bugs and feature requests.
+          
+          ### 📝 Changelog
+          
+          See [CHANGELOG.md](https://github.com/robomon1/robo-stream/blob/main/CHANGELOG.md) for detailed changes.
+          EOF
+
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Robo-Stream v${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
