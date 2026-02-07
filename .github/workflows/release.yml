@@ -649,6 +649,146 @@ jobs:
           name: client-android-apk
           path: client-web/android/app/build/outputs/apk/release/app-release.apk
 
+  build-client-ios:
+    name: Build Client - iOS
+    needs: detect-version
+    runs-on: macos-latest
+    # Only run if secrets are configured
+    if: github.event_name == 'workflow_dispatch' && vars.ENABLE_MOBILE_BUILDS == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version and build number
+        id: version
+        run: |
+          VERSION="${{ needs.detect-version.outputs.version }}"
+          
+          # Read build number from build-number.txt
+          if [ -f "build-number.txt" ]; then
+            BUILD_NUMBER=$(cat build-number.txt | tr -d '[:space:]')
+          else
+            echo "Error: build-number.txt not found in repository root"
+            exit 1
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "Building iOS v${VERSION} (build ${BUILD_NUMBER})"
+
+      - name: Install dependencies
+        run: |
+          cd client-web
+          npm ci
+
+      - name: Build web assets
+        run: |
+          cd client-web
+          npm run build
+
+      - name: Sync Capacitor
+        run: |
+          cd client-web
+          npx cap sync ios
+
+      - name: Set up signing certificate
+        env:
+          IOS_BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          
+          # Import certificate
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          echo -n "$IOS_BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          security import $CERTIFICATE_PATH -P "$IOS_P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Set up provisioning profile
+        env:
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          echo -n "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+
+      - name: Update version and build number in Xcode project
+        run: |
+          cd client-web/ios/App
+          # Update Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.version }}" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ steps.version.outputs.build_number }}" App/Info.plist
+
+      - name: Build iOS App
+        run: |
+          cd client-web/ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath $RUNNER_TEMP/robostream.xcarchive \
+            archive
+
+      - name: Export IPA
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>${IOS_TEAM_ID}</string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+          
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/robostream.xcarchive \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
+            -exportPath $RUNNER_TEMP/export
+
+      - name: Upload to App Store Connect
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          # Decode API key
+          API_KEY_PATH=$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          echo -n "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode -o $API_KEY_PATH
+          
+          # Upload to TestFlight or App Store
+          xcrun altool --upload-app \
+            --type ios \
+            --file $RUNNER_TEMP/export/*.ipa \
+            --apiKey $APP_STORE_CONNECT_API_KEY_ID \
+            --apiIssuer $APP_STORE_CONNECT_API_ISSUER_ID
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-ios-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+
   # ============================================================================
   # CREATE UNIFIED RELEASE
   # ============================================================================
@@ -706,6 +846,7 @@ jobs:
           
           # Client mobile builds (if available)
           cp artifacts/client-android-apk/app-release.apk release/robo-stream-client-${{ steps.version.outputs.version }}.apk 2>/dev/null || echo "Android APK not found (mobile builds may be disabled)"
+          cp artifacts/client-ios-ipa/*.ipa release/robo-stream-client-${{ steps.version.outputs.version }}.ipa 2>/dev/null || echo "iOS IPA not found (mobile builds may be disabled)"
           
           ls -la release/
 
@@ -754,6 +895,8 @@ jobs:
           
           **iOS:**
           - [Apple App Store](https://apps.apple.com/app/robo-stream-client)
+          - [TestFlight](https://testflight.apple.com/join/YOUR_CODE) (beta)
+          - \`robo-stream-client-${VERSION}.ipa\` (development/enterprise only)
           
           ---
           
@@ -834,3 +977,4 @@ jobs:
           files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          

@@ -194,6 +194,48 @@ jobs:
           cd client-web/android
           test -f "app/build/outputs/apk/debug/app-debug.apk"
 
+  test-client-ios:
+    name: Test iOS Build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd client-web
+          npm ci
+
+      - name: Build web assets
+        run: |
+          cd client-web
+          npm run build
+
+      - name: Sync Capacitor
+        run: |
+          cd client-web
+          npx cap sync ios
+
+      - name: Build iOS app (without signing)
+        run: |
+          cd client-web/ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            clean build \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Test app bundle exists
+        run: |
+          cd client-web/ios/App
+          test -d "build/Debug-iphonesimulator/App.app"
+
   # Optional: Add linting
   # lint-server:
   #   name: Lint Server Code
@@ -234,7 +276,7 @@ jobs:
   #       with:
   #         version: latest
   #         working-directory: server
-  #         args: --timeout=5m
+  #         args: --timeout=5m --out-format=colored-line-number
 
   lint-client:
     name: Lint Client Code
