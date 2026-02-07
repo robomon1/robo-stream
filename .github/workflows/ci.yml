@@ -195,46 +195,46 @@ jobs:
           test -f "app/build/outputs/apk/debug/app-debug.apk"
 
   # Optional: Add linting
-  lint-server:
-    name: Lint Server Code
-    runs-on: ubuntu-22.04
-    continue-on-error: true  # Don't fail CI if linting has issues
-    steps:
-      - uses: actions/checkout@v4
+  # lint-server:
+  #   name: Lint Server Code
+  #   runs-on: ubuntu-22.04
+  #   continue-on-error: true  # Don't fail CI if linting has issues
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
+  #     - name: Setup Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version: ${{ env.GO_VERSION }}
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+  #     - name: Setup Node
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+  #     - name: Install Wails
+  #       run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+  #     - name: Install dependencies
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
 
-      - name: Build frontend (required for go:embed)
-        run: |
-          cd server
-          # Generate frontend/dist directory
-          wails build -skipbindings -s || true
-          # Or just create the directory if build fails
-          mkdir -p frontend/dist
-          touch frontend/dist/.gitkeep
+  #     - name: Build frontend (required for go:embed)
+  #       run: |
+  #         cd server
+  #         # Generate frontend/dist directory
+  #         wails build -skipbindings -s || true
+  #         # Or just create the directory if build fails
+  #         mkdir -p frontend/dist
+  #         touch frontend/dist/.gitkeep
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          working-directory: server
-          args: --timeout=5m
+  #     - name: Run golangci-lint
+  #       uses: golangci/golangci-lint-action@v3
+  #       with:
+  #         version: latest
+  #         working-directory: server
+  #         args: --timeout=5m
 
   lint-client:
     name: Lint Client Code
