@@ -6,14 +6,6 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to build (e.g., 0.1.1)'
-        required: true
-        type: string
-      build_number:
-        description: 'Build number for mobile (integer, must increment)'
-        required: true
-        type: string
       android_track:
         description: 'Android release track'
         required: true
@@ -35,11 +27,47 @@ on:
 
 jobs:
   # ============================================================================
+  # DETECT VERSION FROM FILES
+  # ============================================================================
+  
+  detect-version:
+    name: Detect Version from Code
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.determine.outputs.version }}
+      tag: ${{ steps.determine.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: determine
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Tag trigger - extract from tag
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            # Manual trigger or other - read from version.txt
+            if [ -f "version.txt" ]; then
+              VERSION=$(cat version.txt | tr -d '[:space:]')
+            else
+              echo "Error: version.txt not found in repository root"
+              exit 1
+            fi
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          
+          echo "Release Version: $VERSION"
+
+  # ============================================================================
   # SERVER BUILDS
   # ============================================================================
   
   build-server-macos:
     name: Build Server - macOS Universal
+    needs: detect-version
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -520,6 +548,7 @@ jobs:
 
   build-client-android:
     name: Build Client - Android
+    needs: detect-version
     runs-on: ubuntu-22.04
     # Only run if secrets are configured
     if: github.event_name == 'workflow_dispatch' && vars.ENABLE_MOBILE_BUILDS == 'true'
@@ -537,6 +566,23 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+
+      - name: Get version and build number
+        id: version
+        run: |
+          VERSION="${{ needs.detect-version.outputs.version }}"
+          
+          # Read build number from build-number.txt
+          if [ -f "build-number.txt" ]; then
+            BUILD_NUMBER=$(cat build-number.txt | tr -d '[:space:]')
+          else
+            echo "Error: build-number.txt not found in repository root"
+            exit 1
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "Building Android v${VERSION} (build ${BUILD_NUMBER})"
 
       - name: Install dependencies
         run: |
@@ -575,8 +621,8 @@ jobs:
       - name: Update version in build.gradle
         run: |
           cd client-web/android
-          sed -i "s/versionName = \".*\"/versionName = \"${{ github.event.inputs.version }}\"/" variables.gradle
-          sed -i "s/versionCode = [0-9]*/versionCode = ${{ github.event.inputs.build_number }}/" app/build.gradle
+          sed -i "s/versionName = \".*\"/versionName = \"${{ steps.version.outputs.version }}\"/" variables.gradle
+          sed -i "s/versionCode = [0-9]*/versionCode = ${{ steps.version.outputs.build_number }}/" app/build.gradle
 
       - name: Build Android APK
         run: |
@@ -609,7 +655,8 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: 
+    needs:
+      - detect-version
       - build-server-macos
       - build-server-linux
       - build-server-windows
@@ -623,16 +670,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Determine version
+      - name: Get version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION=${GITHUB_REF#refs/tags/v}
-          fi
+          VERSION="${{ needs.detect-version.outputs.version }}"
+          TAG="${{ needs.detect-version.outputs.tag }}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -790,4 +834,3 @@ jobs:
           files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
