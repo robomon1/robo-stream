@@ -227,16 +227,27 @@ jobs:
             -scheme App \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            clean build \
+            -derivedDataPath ./build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO
 
-      - name: Test app bundle exists
+      - name: Test build succeeded
         run: |
           cd client-web/ios/App
-          test -d "build/Debug-iphonesimulator/App.app"
+          # Check if build directory was created
+          if [ -d "build" ]; then
+            echo "Build directory exists"
+            echo "Contents:"
+            find build -name "*.app" -type d | head -5
+            # If we found at least one .app, consider it success
+            if find build -name "*.app" -type d | grep -q ".app"; then
+              echo "Build succeeded - found .app bundle"
+              exit 0
+            fi
+          fi
+          echo "Build verification failed"
+          exit 1
 
   # Optional: Add linting
   # lint-server:
