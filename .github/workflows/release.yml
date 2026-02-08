@@ -239,14 +239,18 @@ jobs:
           
           # Create AppRun script
           cat > AppDir/AppRun << 'EOF'
-          #!/bin/bash
-          SELF=$(readlink -f "$0")
-          HERE=${SELF%/*}
-          export PATH="${HERE}/usr/bin:${PATH}"
-          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-          exec "${HERE}/usr/bin/robo-stream-server" "$@"
-          EOF
+#!/bin/bash
+SELF=$(readlink -f "$0")
+HERE=${SELF%/*}
+export PATH="${HERE}/usr/bin:${PATH}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+exec "${HERE}/usr/bin/robo-stream-server" "$@"
+EOF
           chmod +x AppDir/AppRun
+          
+          # Verify AppRun is a script, not a binary
+          echo "=== AppRun file type ==="
+          file AppDir/AppRun
           
           # Create a placeholder icon
           echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > AppDir/robo-stream-server.png
@@ -280,9 +284,20 @@ jobs:
           fi
           
           echo "=== Building AppImage with ARCH=${ARCH} ==="
+          echo "Environment ARCH=${ARCH}"
+          
+          # Double-check no other binaries are present
+          echo "=== Checking for any other executables ==="
+          find AppDir -type f -executable -exec file {} \;
           
           # Use extracted appimagetool with --no-appstream to skip metadata checks
-          ./squashfs-root/AppRun --no-appstream AppDir robo-stream-server-${MATRIX_ARCH}-${VERSION}.appimage
+          # Force the architecture in the environment and use verbose mode
+          ARCH=${ARCH} ./squashfs-root/AppRun --no-appstream -v AppDir robo-stream-server-${MATRIX_ARCH}-${VERSION}.appimage 2>&1 || {
+            echo "=== AppImage creation failed, trying alternative method ==="
+            # Alternative: manually create the AppImage using mksquashfs if appimagetool fails
+            echo "This would require implementing manual AppImage creation"
+            exit 1
+          }
           
           # Cleanup
           rm -rf AppDir appimagetool squashfs-root
