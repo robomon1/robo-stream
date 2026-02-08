@@ -239,13 +239,13 @@ jobs:
           
           # Create AppRun script
           cat > AppDir/AppRun << 'EOF'
-#!/bin/bash
-SELF=$(readlink -f "$0")
-HERE=${SELF%/*}
-export PATH="${HERE}/usr/bin:${PATH}"
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-exec "${HERE}/usr/bin/robo-stream-server" "$@"
-EOF
+          #!/bin/bash
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+          exec "${HERE}/usr/bin/robo-stream-server" "$@"
+          EOF
           chmod +x AppDir/AppRun
           
           # Verify AppRun is a script, not a binary
