@@ -252,8 +252,15 @@ jobs:
           echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > AppDir/robo-stream-server.png
           cp AppDir/robo-stream-server.png AppDir/usr/share/icons/hicolor/256x256/apps/
           
-          # Download appimagetool
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          # Download appimagetool for the correct architecture
+          if [ "${MATRIX_ARCH}" = "amd64" ]; then
+            APPIMAGETOOL_ARCH="x86_64"
+          elif [ "${MATRIX_ARCH}" = "arm64" ]; then
+            APPIMAGETOOL_ARCH="aarch64"
+          fi
+          
+          echo "=== Downloading appimagetool-${APPIMAGETOOL_ARCH} ==="
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${APPIMAGETOOL_ARCH}.AppImage -O appimagetool
           chmod +x appimagetool
           
           # Extract appimagetool (avoids FUSE runtime issues)
