@@ -119,6 +119,7 @@ jobs:
 
   build-server-linux:
     name: Build Server - Linux
+    needs: detect-version
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
@@ -142,11 +143,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION=${GITHUB_REF#refs/tags/v}
-          fi
+          VERSION="${{ needs.detect-version.outputs.version }}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
@@ -255,6 +252,7 @@ jobs:
 
   build-server-windows:
     name: Build Server - Windows
+    needs: detect-version
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -271,11 +269,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $VERSION = "${{ github.event.inputs.version }}"
-          } else {
-            $VERSION = "${{ github.ref }}".Replace("refs/tags/v", "")
-          }
+          $VERSION = "${{ needs.detect-version.outputs.version }}"
           echo "version=$VERSION" >> $env:GITHUB_OUTPUT
 
       - name: Install dependencies
@@ -310,6 +304,7 @@ jobs:
 
   build-client-macos:
     name: Build Client - macOS
+    needs: detect-version
     runs-on: macos-latest
     strategy:
       matrix:
