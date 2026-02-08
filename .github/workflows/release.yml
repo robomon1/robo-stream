@@ -211,9 +211,10 @@ jobs:
           
           # Copy binary
           cp robo-stream-server AppDir/usr/bin/
+          chmod +x AppDir/usr/bin/robo-stream-server
           
-          # Create .desktop file
-          cat > AppDir/usr/share/applications/robo-stream-server.desktop << EOF
+          # Create .desktop file in BOTH locations (required by appimagetool)
+          cat > AppDir/robo-stream-server.desktop << EOF
           [Desktop Entry]
           Name=Robo-Stream Server
           Comment=Remote OBS Control Server
@@ -223,6 +224,9 @@ jobs:
           Categories=Network;AudioVideo;
           Icon=robo-stream-server
           EOF
+          
+          # Also put in usr/share/applications
+          cp AppDir/robo-stream-server.desktop AppDir/usr/share/applications/
           
           # Create AppRun script
           cat > AppDir/AppRun << 'EOF'
@@ -235,6 +239,12 @@ jobs:
           EOF
           chmod +x AppDir/AppRun
           
+          # Create a placeholder icon
+          convert -size 256x256 xc:blue AppDir/robo-stream-server.png || \
+          echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > AppDir/robo-stream-server.png
+          
+          cp AppDir/robo-stream-server.png AppDir/usr/share/icons/hicolor/256x256/apps/
+          
           # Download appimagetool
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
           chmod +x appimagetool
@@ -242,8 +252,8 @@ jobs:
           # Extract appimagetool (avoids FUSE runtime issues)
           ./appimagetool --appimage-extract
           
-          # Use extracted appimagetool
-          ARCH=${ARCH} ./squashfs-root/AppRun AppDir robo-stream-server-${ARCH}-${VERSION}.appimage
+          # Use extracted appimagetool with --no-appstream to skip metadata checks
+          ARCH=${ARCH} ./squashfs-root/AppRun --no-appstream AppDir robo-stream-server-${ARCH}-${VERSION}.appimage
           
           # Cleanup
           rm -rf AppDir appimagetool squashfs-root
