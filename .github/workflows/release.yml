@@ -237,20 +237,12 @@ jobs:
           # Also put in usr/share/applications
           cp AppDir/robo-stream-server.desktop AppDir/usr/share/applications/
           
-          # Create AppRun script
-          cat > AppDir/AppRun << 'EOF'
-          #!/bin/bash
-          SELF=$(readlink -f "$0")
-          HERE=${SELF%/*}
-          export PATH="${HERE}/usr/bin:${PATH}"
-          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-          exec "${HERE}/usr/bin/robo-stream-server" "$@"
-          EOF
-          chmod +x AppDir/AppRun
+          # Don't create AppRun - let appimagetool generate it
+          # This avoids the architecture detection issue with bash scripts
           
           # Verify AppRun is a script, not a binary
-          echo "=== AppRun file type ==="
-          file AppDir/AppRun
+          echo "=== AppDir structure (no AppRun yet) ==="
+          ls -la AppDir/
           
           # Create a placeholder icon
           echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > AppDir/robo-stream-server.png
