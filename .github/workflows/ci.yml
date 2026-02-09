@@ -18,6 +18,7 @@ jobs:
   test-server-macos:
     name: Test Server Build - macOS
     runs-on: macos-latest
+    if: vars.SKIP_CI != 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +43,7 @@ jobs:
   test-server-linux:
     name: Test Server Build - Linux
     runs-on: ubuntu-22.04
+    if: vars.SKIP_CI != 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -74,6 +76,7 @@ jobs:
   test-server-windows:
     name: Test Server Build - Windows
     runs-on: windows-latest
+    if: vars.SKIP_CI != 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -100,6 +103,7 @@ jobs:
   test-client-web-build:
     name: Test Client Web Build
     runs-on: ubuntu-22.04
+    if: vars.SKIP_CI != 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -126,6 +130,7 @@ jobs:
   test-client-electron:
     name: Test Electron Build
     runs-on: ubuntu-22.04
+    if: vars.SKIP_CI != 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -155,6 +160,7 @@ jobs:
   test-client-android:
     name: Test Android Build
     runs-on: ubuntu-22.04
+    if: vars.SKIP_CI != 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -197,6 +203,7 @@ jobs:
   test-client-ios:
     name: Test iOS Build
     runs-on: macos-latest
+    if: vars.SKIP_CI != 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -253,6 +260,7 @@ jobs:
   # lint-server:
   #   name: Lint Server Code
   #   runs-on: ubuntu-22.04
+  #   if: vars.SKIP_CI != 'true'
   #   continue-on-error: true  # Don't fail CI if linting has issues
   #   steps:
   #     - uses: actions/checkout@v4
@@ -294,6 +302,7 @@ jobs:
   lint-client:
     name: Lint Client Code
     runs-on: ubuntu-22.04
+    if: vars.SKIP_CI != 'true'
     continue-on-error: true  # Don't fail CI if linting has issues
     steps:
       - uses: actions/checkout@v4

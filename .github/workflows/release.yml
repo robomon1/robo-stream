@@ -69,6 +69,7 @@ jobs:
     name: Build Server - macOS Universal
     needs: detect-version
     runs-on: macos-latest
+    if: vars.ENABLE_SERVER_BUILDS != 'false'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -121,6 +122,7 @@ jobs:
     name: Build Server - Linux
     needs: detect-version
     runs-on: ${{ matrix.runner }}
+    if: vars.ENABLE_SERVER_BUILDS != 'false'
     strategy:
       matrix:
         include:
@@ -306,6 +308,7 @@ jobs:
     name: Build Server - Windows
     needs: detect-version
     runs-on: windows-latest
+    if: vars.ENABLE_SERVER_BUILDS != 'false'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -358,6 +361,7 @@ jobs:
     name: Build Client - macOS
     needs: detect-version
     runs-on: macos-latest
+    if: vars.ENABLE_CLIENT_BUILDS != 'false'
     strategy:
       matrix:
         arch: [x64, arm64]
@@ -436,7 +440,9 @@ jobs:
 
   build-client-linux:
     name: Build Client - Linux
+    needs: detect-version
     runs-on: ${{ matrix.runner }}
+    if: vars.ENABLE_CLIENT_BUILDS != 'false'
     strategy:
       matrix:
         include:
@@ -529,7 +535,9 @@ jobs:
 
   build-client-windows:
     name: Build Client - Windows
+    needs: detect-version
     runs-on: windows-latest
+    if: vars.ENABLE_CLIENT_BUILDS != 'false'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -850,6 +858,7 @@ jobs:
       - build-client-macos
       - build-client-linux
       - build-client-windows
+    if: always() && needs.detect-version.result == 'success'
     runs-on: ubuntu-22.04
     permissions:
       contents: write
