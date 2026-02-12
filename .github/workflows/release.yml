@@ -692,14 +692,15 @@ jobs:
           fi
           
           # Create keystore.properties with correct property names
-          cat > client-web/android/keystore.properties << EOF
-          ROBOSTREAM_RELEASE_STORE_FILE=app/robostream-release.keystore
-          ROBOSTREAM_RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD
-          ROBOSTREAM_RELEASE_KEY_ALIAS=$KEY_ALIAS
-          ROBOSTREAM_RELEASE_KEY_PASSWORD=$KEY_PASSWORD
-          EOF
+          # Using printf to avoid heredoc YAML indentation issues
+          printf "ROBOSTREAM_RELEASE_STORE_FILE=app/robostream-release.keystore\n" > client-web/android/keystore.properties
+          printf "ROBOSTREAM_RELEASE_STORE_PASSWORD=%s\n" "$KEYSTORE_PASSWORD" >> client-web/android/keystore.properties
+          printf "ROBOSTREAM_RELEASE_KEY_ALIAS=%s\n" "$KEY_ALIAS" >> client-web/android/keystore.properties
+          printf "ROBOSTREAM_RELEASE_KEY_PASSWORD=%s\n" "$KEY_PASSWORD" >> client-web/android/keystore.properties
           
           echo "keystore.properties created successfully"
+          echo "--- Contents (passwords masked) ---"
+          sed 's/PASSWORD=.*/PASSWORD=***/' client-web/android/keystore.properties
 
       - name: Update version in build.gradle
         run: |
@@ -787,11 +788,32 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           
-          # Import certificate
+          # Import certificate with access for codesign tools
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           echo -n "$IOS_BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-          security import $CERTIFICATE_PATH -P "$IOS_P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH \
+            -P "$IOS_P12_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k $KEYCHAIN_PATH \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security \
+            -T /usr/bin/productbuild
+          
+          # Allow codesign to access keychain without UI prompts
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$IOS_KEYCHAIN_PASSWORD" \
+            $KEYCHAIN_PATH
+          
+          # Add to keychain search list
           security list-keychain -d user -s $KEYCHAIN_PATH
+          
+          # Verify certificate was imported
+          echo "=== Imported certificates ==="
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
 
       - name: Set up provisioning profile
         env:
@@ -839,28 +861,36 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             PROVISIONING_PROFILE_SPECIFIER="${{ env.profile_name }}" \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            archive
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            -project App.xcodeproj \
+            PODS_DEVELOPMENT_TEAM=$IOS_TEAM_ID \
+            archive \
+            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/app-signing.keychain-db" \
+            2>&1 | grep -E "error:|warning:|Build succeeded|ARCHIVE FAILED|note:" | grep -v "Disabling previews"
 
       - name: Export IPA
         env:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
-          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>teamID</key>
-            <string>${IOS_TEAM_ID}</string>
-            <key>uploadBitcode</key>
-            <false/>
-            <key>uploadSymbols</key>
-            <true/>
-          </dict>
-          </plist>
-          EOF
+          # Write ExportOptions.plist using printf to avoid heredoc YAML indentation issues
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n' > $RUNNER_TEMP/ExportOptions.plist
+          printf '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' >> $RUNNER_TEMP/ExportOptions.plist
+          printf '<plist version="1.0">\n<dict>\n' >> $RUNNER_TEMP/ExportOptions.plist
+          printf '  <key>method</key><string>app-store</string>\n' >> $RUNNER_TEMP/ExportOptions.plist
+          printf '  <key>teamID</key><string>%s</string>\n' "$IOS_TEAM_ID" >> $RUNNER_TEMP/ExportOptions.plist
+          printf '  <key>uploadBitcode</key><false/>\n' >> $RUNNER_TEMP/ExportOptions.plist
+          printf '  <key>uploadSymbols</key><true/>\n' >> $RUNNER_TEMP/ExportOptions.plist
+          printf '  <key>signingStyle</key><string>manual</string>\n' >> $RUNNER_TEMP/ExportOptions.plist
+          printf '  <key>provisioningProfiles</key>\n' >> $RUNNER_TEMP/ExportOptions.plist
+          printf '  <dict>\n' >> $RUNNER_TEMP/ExportOptions.plist
+          printf '    <key>com.robostream.robostreamclient</key>\n' >> $RUNNER_TEMP/ExportOptions.plist
+          printf '    <string>%s</string>\n' "${{ env.profile_name }}" >> $RUNNER_TEMP/ExportOptions.plist
+          printf '  </dict>\n' >> $RUNNER_TEMP/ExportOptions.plist
+          printf '</dict>\n</plist>\n' >> $RUNNER_TEMP/ExportOptions.plist
+          
+          echo "=== ExportOptions.plist ==="
+          cat $RUNNER_TEMP/ExportOptions.plist
           
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/robostream.xcarchive \
