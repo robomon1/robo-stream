@@ -627,13 +627,9 @@ jobs:
         run: |
           VERSION="${{ needs.detect-version.outputs.version }}"
           
-          # Read build number from build-number.txt
-          if [ -f "build-number.txt" ]; then
-            BUILD_NUMBER=$(cat build-number.txt | tr -d '[:space:]')
-          else
-            echo "Error: build-number.txt not found in repository root"
-            exit 1
-          fi
+          # Auto-generate build number: Unix timestamp minus 1,000,000,000
+          # Current value ~770M, max is 2.1B, giving ~42 years of headroom (until 2068)
+          BUILD_NUMBER=$(( $(date +%s) - 1000000000 ))
           
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
@@ -658,7 +654,22 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "Error: ANDROID_KEYSTORE_BASE64 secret not set"
+            exit 1
+          fi
+          
+          # Decode keystore to app directory
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > client-web/android/app/robostream-release.keystore
+          
+          # Verify keystore was created
+          if [ ! -f client-web/android/app/robostream-release.keystore ]; then
+            echo "Error: Failed to create keystore file"
+            exit 1
+          fi
+          
+          echo "Keystore created successfully"
+          ls -lh client-web/android/app/robostream-release.keystore
 
       - name: Create keystore.properties
         env:
@@ -666,12 +677,29 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          # Validate all secrets are present
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "Error: ANDROID_KEYSTORE_PASSWORD secret not set"
+            exit 1
+          fi
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "Error: ANDROID_KEY_ALIAS secret not set"
+            exit 1
+          fi
+          if [ -z "$KEY_PASSWORD" ]; then
+            echo "Error: ANDROID_KEY_PASSWORD secret not set"
+            exit 1
+          fi
+          
+          # Create keystore.properties with correct property names
           cat > client-web/android/keystore.properties << EOF
-          storeFile=robostream-release.keystore
-          storePassword=$KEYSTORE_PASSWORD
-          keyAlias=$KEY_ALIAS
-          keyPassword=$KEY_PASSWORD
+          ROBOSTREAM_RELEASE_STORE_FILE=app/robostream-release.keystore
+          ROBOSTREAM_RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD
+          ROBOSTREAM_RELEASE_KEY_ALIAS=$KEY_ALIAS
+          ROBOSTREAM_RELEASE_KEY_PASSWORD=$KEY_PASSWORD
           EOF
+          
+          echo "keystore.properties created successfully"
 
       - name: Update version in build.gradle
         run: |
@@ -724,13 +752,9 @@ jobs:
         run: |
           VERSION="${{ needs.detect-version.outputs.version }}"
           
-          # Read build number from build-number.txt
-          if [ -f "build-number.txt" ]; then
-            BUILD_NUMBER=$(cat build-number.txt | tr -d '[:space:]')
-          else
-            echo "Error: build-number.txt not found in repository root"
-            exit 1
-          fi
+          # Auto-generate build number: Unix timestamp minus 1,000,000,000
+          # Current value ~770M, max is 2.1B, giving ~42 years of headroom (until 2068)
+          BUILD_NUMBER=$(( $(date +%s) - 1000000000 ))
           
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
@@ -775,8 +799,20 @@ jobs:
         run: |
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           echo -n "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+          
+          # Extract UUID from profile (Xcode needs the file named by UUID)
+          UUID=$(security cms -D -i $PP_PATH 2>/dev/null | plutil -extract UUID xml1 - -o - | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p')
+          echo "Provisioning Profile UUID: $UUID"
+          
+          # Install to correct location with UUID filename
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${UUID}.mobileprovision
+          
+          # Save UUID and profile name for build step
+          PROFILE_NAME=$(security cms -D -i $PP_PATH 2>/dev/null | plutil -extract Name xml1 - -o - | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p')
+          echo "Provisioning Profile Name: $PROFILE_NAME"
+          echo "profile_uuid=$UUID" >> $GITHUB_ENV
+          echo "profile_name=$PROFILE_NAME" >> $GITHUB_ENV
 
       - name: Update version and build number in Xcode project
         run: |
@@ -786,13 +822,23 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ steps.version.outputs.build_number }}" App/Info.plist
 
       - name: Build iOS App
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
           cd client-web/ios/App
+          
+          # Install CocoaPods dependencies
+          pod install --repo-update || pod install
+          
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/robostream.xcarchive \
+            DEVELOPMENT_TEAM=$IOS_TEAM_ID \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="${{ env.profile_name }}" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             archive
 
       - name: Export IPA
