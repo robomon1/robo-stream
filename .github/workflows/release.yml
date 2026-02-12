@@ -693,14 +693,15 @@ jobs:
           
           # Create keystore.properties with correct property names
           # Using printf to avoid heredoc YAML indentation issues
-          printf "storeFile=app/robostream-release.keystore\n" > client-web/android/keystore.properties
+          # Note: storeFile path is relative to the app/ directory in build.gradle
+          printf "storeFile=robostream-release.keystore\n" > client-web/android/keystore.properties
           printf "storePassword=%s\n" "$KEYSTORE_PASSWORD" >> client-web/android/keystore.properties
           printf "keyAlias=%s\n" "$KEY_ALIAS" >> client-web/android/keystore.properties
           printf "keyPassword=%s\n" "$KEY_PASSWORD" >> client-web/android/keystore.properties
           
           echo "keystore.properties created successfully"
           echo "--- Contents (passwords masked) ---"
-          sed 's/Password=.*/Password=***/' client-web/android/keystore.properties
+          sed 's/\(Password=\).*/\1***/' client-web/android/keystore.properties
 
       - name: Update version in build.gradle
         run: |
@@ -863,11 +864,17 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGNING_ALLOWED=YES \
-            -project App.xcodeproj \
-            PODS_DEVELOPMENT_TEAM=$IOS_TEAM_ID \
-            archive \
             OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/app-signing.keychain-db" \
-            2>&1 | grep -E "error:|warning:|Build succeeded|ARCHIVE FAILED|note:" | grep -v "Disabling previews"
+            archive
+          
+          # Verify archive was created
+          if [ ! -d "$RUNNER_TEMP/robostream.xcarchive" ]; then
+            echo "Error: Archive was not created at $RUNNER_TEMP/robostream.xcarchive"
+            echo "Contents of RUNNER_TEMP:"
+            ls -la $RUNNER_TEMP/
+            exit 1
+          fi
+          echo "Archive created successfully at $RUNNER_TEMP/robostream.xcarchive"
 
       - name: Export IPA
         env:
