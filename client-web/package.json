@@ -1,7 +1,7 @@
 {
-  "name": "robo-stream-client-web",
+  "name": "robo-stream-client",
   "version": "0.1.1",
-  "description": "Robo-Stream Web Client - OBS Touchscreen Controller",
+  "description": "Robo-Stream Client - OBS Touchscreen Controller",
   "main": "electron-main.cjs",
   "type": "module",
   "scripts": {
