@@ -323,6 +323,9 @@ jobs:
           $VERSION = "${{ needs.detect-version.outputs.version }}"
           echo "version=$VERSION" >> $env:GITHUB_OUTPUT
 
+      - name: Install NSIS
+        run: choco install nsis --no-progress -y
+
       - name: Install dependencies
         run: |
           cd server
@@ -1093,4 +1096,3 @@ jobs:
           fail_on_unmatched: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
