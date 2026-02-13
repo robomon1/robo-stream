@@ -75,7 +75,6 @@ venv
 
 # No build directories
 build
-server/build/
 client-web/electron-dist/
 client-web/android/app/build/
 client-web/ios/build/
