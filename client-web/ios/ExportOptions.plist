@@ -5,6 +5,7 @@
 <dict>
   <key>method</key><string>app-store</string>
   <key>signingStyle</key><string>manual</string>
+  <key>signingCertificate</key><string>Apple Distribution</string>
   <key>teamID</key><string>548954D7AE</string>
   <key>provisioningProfiles</key>
   <dict>
