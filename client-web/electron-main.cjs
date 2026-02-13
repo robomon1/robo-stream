@@ -1,16 +1,19 @@
 // Electron main process - handles window creation and app lifecycle
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, screen } = require('electron');
 const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow;
 
 function createWindow() {
+  // Get the display the app will open on (primary display)
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    width: width,
+    height: height,
+    minWidth: 320,
+    minHeight: 240,
     title: 'Robo-Stream',
     backgroundColor: '#1e293b',
     webPreferences: {
