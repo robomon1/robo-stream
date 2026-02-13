@@ -74,7 +74,20 @@ venv
 .claude
 
 # No build directories
-build
+# Ignore everything under server/build
+server/build/**
+# But keep the platform icon files
+!server/build/appicon.png
+
+!server/build/windows/
+!server/build/windows/icon.ico
+
+!server/build/darwin/
+!server/build/darwin/icon.icns
+
+!server/build/linux/
+!server/build/linux/icon.png
+
 client-web/electron-dist/
 client-web/android/app/build/
 client-web/ios/build/
