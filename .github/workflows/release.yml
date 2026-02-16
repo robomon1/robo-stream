@@ -88,10 +88,35 @@ jobs:
           VERSION="${{ needs.detect-version.outputs.version }}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Install Apple certificate
+        env:
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/macos_certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/macos_signing.keychain-db"
+
+          echo -n "$MACOS_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
       - name: Build macOS Universal Binary
         run: |
           cd server
           wails build -platform darwin/universal -clean
+
+      - name: Sign macOS app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd server/build/bin
+          codesign --deep --force --verify --verbose             --sign "Developer ID Application: ${{ secrets.APPLE_TEAM_ID }}"             --options runtime             Robo-Stream-Server.app
 
       - name: Create DMG
         run: |
@@ -107,6 +132,21 @@ jobs:
             robo-stream-server-${{ steps.version.outputs.version }}.dmg
           
           rm -rf dmg-temp
+
+      - name: Sign and notarize DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd server/build/bin
+          DMG="robo-stream-server-${{ steps.version.outputs.version }}.dmg"
+
+          codesign --sign "Developer ID Application: ${{ secrets.APPLE_TEAM_ID }}"             --options runtime "$DMG"
+
+          xcrun notarytool submit "$DMG"             --apple-id "$APPLE_ID"             --password "$APPLE_APP_PASSWORD"             --team-id "$APPLE_TEAM_ID"             --wait
+
+          xcrun stapler staple "$DMG" 
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -397,15 +437,48 @@ jobs:
           cd client-web
           npm run build
 
+      - name: Install Apple certificate
+        env:
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/macos_certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/macos_signing.keychain-db"
+
+          echo -n "$MACOS_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
       - name: Build Electron app
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           cd client-web
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             npm run electron:build:mac -- --arm64
           else
             npm run electron:build:mac -- --x64
+          fi
+
+      - name: Notarize DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd client-web/electron-dist
+          DMG=$(find . -maxdepth 1 -name "*.dmg" -type f | head -1)
+          if [ -n "$DMG" ]; then
+            xcrun notarytool submit "$DMG"               --apple-id "$APPLE_ID"               --password "$APPLE_APP_PASSWORD"               --team-id "$APPLE_TEAM_ID"               --wait
+            xcrun stapler staple "$DMG"
           fi
 
       - name: Rename DMG
@@ -1098,3 +1171,4 @@ jobs:
           fail_on_unmatched: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
