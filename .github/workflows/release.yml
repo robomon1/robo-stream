@@ -106,6 +106,9 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH"
 
+          echo "=== Available signing identities ==="
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
       - name: Build macOS Universal Binary
         run: |
           cd server
@@ -113,10 +116,19 @@ jobs:
 
       - name: Sign macOS app
         env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
         run: |
-          cd server/build/bin
-          codesign --deep --force --verify --verbose             --sign "Developer ID Application: ${{ secrets.APPLE_TEAM_ID }}"             --options runtime             Robo-Stream-Server.app
+          KEYCHAIN_PATH="$RUNNER_TEMP/macos_signing.keychain-db"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Find the Developer ID identity name dynamically from the keychain
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -1 | sed 's/.*\"\(.*\)\"/\1/')
+          echo "Signing with identity: $IDENTITY"
+
+          codesign --deep --force --verify --verbose \
+            --sign "$IDENTITY" \
+            --options runtime \
+            server/build/bin/Robo-Stream-Server.app
 
       - name: Create DMG
         run: |
@@ -138,13 +150,21 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
         run: |
-          cd server/build/bin
-          DMG="robo-stream-server-${{ steps.version.outputs.version }}.dmg"
+          KEYCHAIN_PATH="$RUNNER_TEMP/macos_signing.keychain-db"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          codesign --sign "Developer ID Application: ${{ secrets.APPLE_TEAM_ID }}"             --options runtime "$DMG"
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -1 | sed 's/.*\"\(.*\)\"/\1/')
+          DMG="server/build/bin/robo-stream-server-${{ steps.version.outputs.version }}.dmg"
 
-          xcrun notarytool submit "$DMG"             --apple-id "$APPLE_ID"             --password "$APPLE_APP_PASSWORD"             --team-id "$APPLE_TEAM_ID"             --wait
+          codesign --sign "$IDENTITY" --options runtime "$DMG"
+
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
 
           xcrun stapler staple "$DMG" 
 
@@ -455,6 +475,9 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH"
 
+          echo "=== Available signing identities ==="
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
       - name: Build Electron app
         env:
           CSC_LINK: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
@@ -473,11 +496,19 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
         run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/macos_signing.keychain-db"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
           cd client-web/electron-dist
           DMG=$(find . -maxdepth 1 -name "*.dmg" -type f | head -1)
           if [ -n "$DMG" ]; then
-            xcrun notarytool submit "$DMG"               --apple-id "$APPLE_ID"               --password "$APPLE_APP_PASSWORD"               --team-id "$APPLE_TEAM_ID"               --wait
+            xcrun notarytool submit "$DMG" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait
             xcrun stapler staple "$DMG"
           fi
 
