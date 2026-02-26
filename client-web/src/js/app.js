@@ -7,12 +7,15 @@ let apiClient = null;
 let obsStatus = {
   streaming: false,
   recording: false,
+  recordingPaused: false,
   currentScene: '',
   virtualCamActive: false,
   replayBufferActive: false,
   studioModeActive: false
 };
 let sourceVisibility = {};
+let inputMuted = {};
+let filterEnabled = {};
 
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
@@ -170,6 +173,23 @@ function renderButton(button) {
       buttonEl.dataset.sourceName = button.action.params.source_name || '';
   }
 
+  // Store params for input mute buttons
+  if ((button.action.type === 'toggle_input_mute' ||
+      button.action.type === 'mute_input' ||
+      button.action.type === 'unmute_input') &&
+      button.action.params) {
+      buttonEl.dataset.inputName = button.action.params.input_name || '';
+  }
+
+  // Store params for source filter buttons
+  if ((button.action.type === 'toggle_source_filter' ||
+      button.action.type === 'enable_source_filter' ||
+      button.action.type === 'disable_source_filter') &&
+      button.action.params) {
+      buttonEl.dataset.sourceName = button.action.params.source_name || '';
+      buttonEl.dataset.filterName = button.action.params.filter_name || '';
+  }
+
   buttonEl.innerHTML = `
       <i data-lucide="${button.icon || 'square'}"></i>
       <span class="button-text">${button.text}</span>
@@ -213,12 +233,35 @@ function shouldShowIndicator(buttonEl) {
   if (actionType === 'toggle_virtual_cam') return obsStatus.virtualCamActive;
 
   // Studio Mode indicators
-  if (actionType === 'toggle_studio_mode' || 
-      actionType === 'enable_studio_mode' || 
-      actionType === 'disable_studio_mode') {
+  if (actionType === 'toggle_studio_mode' || actionType === 'enable_studio_mode') {
     return obsStatus.studioModeActive;
   }
+  if (actionType === 'disable_studio_mode') return !obsStatus.studioModeActive;
   if (actionType === 'trigger_transition') return obsStatus.studioModeActive;
+
+  // Recording pause/resume indicators
+  if (actionType === 'pause_record') return obsStatus.recording && !obsStatus.recordingPaused;
+  if (actionType === 'resume_record') return obsStatus.recording && obsStatus.recordingPaused;
+
+  // Input mute indicators
+  if (actionType === 'toggle_input_mute' ||
+      actionType === 'mute_input' ||
+      actionType === 'unmute_input') {
+    const buttonId = buttonEl.dataset.buttonId;
+    const muted = inputMuted[buttonId] === true;
+    if (actionType === 'unmute_input') return !muted;
+    return muted;
+  }
+
+  // Source filter indicators
+  if (actionType === 'toggle_source_filter' ||
+      actionType === 'enable_source_filter' ||
+      actionType === 'disable_source_filter') {
+    const buttonId = buttonEl.dataset.buttonId;
+    const enabled = filterEnabled[buttonId] === true;
+    if (actionType === 'disable_source_filter') return !enabled;
+    return enabled;
+  }
 
   return false;
 }
@@ -298,10 +341,29 @@ async function pressButton(position, action) {
         }
 
         // Update source visibility
-        if (action.type === 'toggle_source_visibility' || 
-            action.type === 'show_source' || 
+        if (action.type === 'toggle_source_visibility' ||
+            action.type === 'show_source' ||
             action.type === 'hide_source') {
           setTimeout(() => updateSourceVisibility(), 500);
+        }
+
+        // Update input mute state
+        if (action.type === 'toggle_input_mute' ||
+            action.type === 'mute_input' ||
+            action.type === 'unmute_input') {
+          setTimeout(() => updateInputMute(), 500);
+        }
+
+        // Update source filter state
+        if (action.type === 'toggle_source_filter' ||
+            action.type === 'enable_source_filter' ||
+            action.type === 'disable_source_filter') {
+          setTimeout(() => updateFilterState(), 500);
+        }
+
+        // Update recording status for pause/resume
+        if (action.type === 'pause_record' || action.type === 'resume_record') {
+          setTimeout(() => updateStatusFromBackend(), 500);
         }
     } catch (err) {
         console.error('Failed to press button:', err);
@@ -315,6 +377,8 @@ function startStatusPolling() {
   setInterval(async () => {
       await updateStatusFromBackend();
       await updateSourceVisibility();
+      await updateInputMute();
+      await updateFilterState();
   }, 2000);
 }
 
@@ -326,21 +390,23 @@ async function updateStatusFromBackend() {
       // Track changes
       const streamingChanged = obsStatus.streaming !== (status.streaming || false);
       const recordingChanged = obsStatus.recording !== (status.recording || false);
+      const recordingPausedChanged = obsStatus.recordingPaused !== (status.recording_paused || false);
       const sceneChanged = obsStatus.currentScene !== (status.current_scene || '');
       const virtualCamChanged = obsStatus.virtualCamActive !== (status.virtual_cam_active || false);
       const replayBufferChanged = obsStatus.replayBufferActive !== (status.replay_buffer_active || false);
       const studioModeChanged = obsStatus.studioModeActive !== (status.studio_mode_active || false);
-      
+
       // Update state
       obsStatus.streaming = status.streaming || false;
       obsStatus.recording = status.recording || false;
+      obsStatus.recordingPaused = status.recording_paused || false;
       obsStatus.currentScene = status.current_scene || '';
       obsStatus.virtualCamActive = status.virtual_cam_active || false;
       obsStatus.replayBufferActive = status.replay_buffer_active || false;
       obsStatus.studioModeActive = status.studio_mode_active || false;
-      
+
       // Update indicators if anything changed
-      if (streamingChanged || recordingChanged || sceneChanged || 
+      if (streamingChanged || recordingChanged || recordingPausedChanged || sceneChanged ||
           virtualCamChanged || replayBufferChanged || studioModeChanged) {
           updateAllIndicators();
       }
@@ -381,6 +447,61 @@ async function updateSourceVisibility() {
       }
   }
   
+  updateAllIndicators();
+}
+
+// Update mute state for all input mute buttons
+async function updateInputMute() {
+  const buttons = document.querySelectorAll('.deck-button');
+
+  for (const buttonEl of buttons) {
+    const actionType = buttonEl.dataset.actionType;
+
+    if (actionType === 'toggle_input_mute' ||
+        actionType === 'mute_input' ||
+        actionType === 'unmute_input') {
+      const buttonId = buttonEl.dataset.buttonId;
+      const inputName = buttonEl.dataset.inputName;
+
+      if (inputName) {
+        try {
+          const muted = await apiClient.getInputMute(inputName);
+          inputMuted[buttonId] = muted;
+        } catch (err) {
+          inputMuted[buttonId] = false;
+        }
+      }
+    }
+  }
+
+  updateAllIndicators();
+}
+
+// Update filter state for all source filter buttons
+async function updateFilterState() {
+  const buttons = document.querySelectorAll('.deck-button');
+
+  for (const buttonEl of buttons) {
+    const actionType = buttonEl.dataset.actionType;
+
+    if (actionType === 'toggle_source_filter' ||
+        actionType === 'enable_source_filter' ||
+        actionType === 'disable_source_filter') {
+      const buttonId = buttonEl.dataset.buttonId;
+      const sourceName = buttonEl.dataset.sourceName;
+      const filterName = buttonEl.dataset.filterName;
+
+      if (sourceName && filterName) {
+        try {
+          const enabled = await apiClient.getSourceFilterEnabled(sourceName, filterName);
+          filterEnabled[buttonId] = enabled;
+        } catch (err) {
+          filterEnabled[buttonId] = false;
+        }
+      }
+    }
+  }
+
   updateAllIndicators();
 }
 

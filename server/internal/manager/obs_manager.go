@@ -578,11 +578,53 @@ func (om *OBSManager) GetStatus() (map[string]interface{}, error) {
 		"connected":            true,
 		"streaming":            streamResp.OutputActive,
 		"recording":            recordResp.OutputActive,
+		"recording_paused":     recordResp.OutputPaused,
 		"current_scene":        sceneResp.CurrentProgramSceneName,
 		"virtual_cam_active":   virtualCamActive,
 		"replay_buffer_active": replayBufferActive,
 		"studio_mode_active":   studioModeActive,
 	}, nil
+}
+
+// GetInputMute returns whether an input is muted
+func (om *OBSManager) GetInputMute(inputName string) (bool, error) {
+	om.mu.RLock()
+	client := om.client
+	om.mu.RUnlock()
+
+	if client == nil {
+		return false, fmt.Errorf("not connected to OBS")
+	}
+
+	resp, err := client.Inputs.GetInputMute(&inputs.GetInputMuteParams{
+		InputName: &inputName,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return resp.InputMuted, nil
+}
+
+// GetSourceFilterEnabled returns whether a source filter is enabled
+func (om *OBSManager) GetSourceFilterEnabled(sourceName, filterName string) (bool, error) {
+	om.mu.RLock()
+	client := om.client
+	om.mu.RUnlock()
+
+	if client == nil {
+		return false, fmt.Errorf("not connected to OBS")
+	}
+
+	resp, err := client.Filters.GetSourceFilter(&filters.GetSourceFilterParams{
+		SourceName: &sourceName,
+		FilterName: &filterName,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return resp.FilterEnabled, nil
 }
 
 // GetSourceVisibility checks if a source is visible in a scene
