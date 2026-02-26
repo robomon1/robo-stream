@@ -59,6 +59,8 @@ func (s *Server) setupRoutes() {
 	s.router.HandleFunc("/api/obs/scenes", s.getScenes).Methods("GET", "OPTIONS")
 	s.router.HandleFunc("/api/obs/inputs", s.getInputs).Methods("GET", "OPTIONS")
 	s.router.HandleFunc("/api/obs/source-visibility", s.getSourceVisibility).Methods("GET", "OPTIONS")
+	s.router.HandleFunc("/api/obs/input-mute", s.getInputMute).Methods("GET", "OPTIONS")
+	s.router.HandleFunc("/api/obs/source-filter", s.getSourceFilterEnabled).Methods("GET", "OPTIONS")
 	// Health check
 	s.router.HandleFunc("/api/health", s.healthCheck).Methods("GET", "OPTIONS")
 }
@@ -355,6 +357,44 @@ func (s *Server) getSourceVisibility(w http.ResponseWriter, r *http.Request) {
 
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
 		"visible": visible,
+	})
+}
+
+func (s *Server) getInputMute(w http.ResponseWriter, r *http.Request) {
+	inputName := r.URL.Query().Get("input")
+	if inputName == "" {
+		s.respondError(w, http.StatusBadRequest, "missing input parameter")
+		return
+	}
+
+	muted, err := s.obsManager.GetInputMute(inputName)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"muted": muted,
+	})
+}
+
+func (s *Server) getSourceFilterEnabled(w http.ResponseWriter, r *http.Request) {
+	sourceName := r.URL.Query().Get("source")
+	filterName := r.URL.Query().Get("filter")
+
+	if sourceName == "" || filterName == "" {
+		s.respondError(w, http.StatusBadRequest, "missing source or filter parameter")
+		return
+	}
+
+	enabled, err := s.obsManager.GetSourceFilterEnabled(sourceName, filterName)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"enabled": enabled,
 	})
 }
 

@@ -140,6 +140,34 @@ export class APIClient {
     }
   }
 
+  // Get input mute state
+  async getInputMute(inputName) {
+    try {
+      const params = new URLSearchParams({ input: inputName });
+      const response = await fetch(`${this.serverURL}/api/obs/input-mute?${params}`);
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      const data = await response.json();
+      return data.muted;
+    } catch (err) {
+      console.error('Failed to get input mute:', err);
+      return false;
+    }
+  }
+
+  // Get source filter enabled state
+  async getSourceFilterEnabled(sourceName, filterName) {
+    try {
+      const params = new URLSearchParams({ source: sourceName, filter: filterName });
+      const response = await fetch(`${this.serverURL}/api/obs/source-filter?${params}`);
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      const data = await response.json();
+      return data.enabled;
+    } catch (err) {
+      console.error('Failed to get source filter state:', err);
+      return false;
+    }
+  }
+
   // Get source visibility
   async getSourceVisibility(sceneName, sourceName) {
     try {
