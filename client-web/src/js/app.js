@@ -52,19 +52,18 @@ async function initializeApp() {
 // Connect to server and load configuration
 async function connectAndLoad() {
     try {
-        // Test connection
         showConnectionBanner('Connecting to server...', 'connecting');
-        await apiClient.getServerInfo();
-        showConnectionBanner('Connected to server', 'connected');
-        
-        // Register to get session ID
+
+        // Register fetches config in one round trip (replaces separate health check)
         console.log('Registering with server...');
         const config = await apiClient.register();
+        showConnectionBanner('Connected to server', 'connected');
+
         handleConfigurationLoaded(config);
-        
+
         // Start status polling
         startStatusPolling();
-        
+
         setTimeout(() => hideConnectionBanner(), 2000);
     } catch (err) {
         console.error('Connection error:', err);
@@ -132,11 +131,16 @@ function renderButtonGrid() {
 
     console.log(`Rendering ${rows}x${cols} grid with ${currentConfiguration.buttons.length} buttons`);
 
+    // Build a position-indexed map so each cell lookup is O(1) instead of O(N)
+    const buttonMap = new Map(
+        currentConfiguration.buttons.map(b => [`${b.row}-${b.col}`, b])
+    );
+
     // Create all cells in grid order
     for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
-            const button = currentConfiguration.buttons.find(b => b.row === row && b.col === col);
-            
+            const button = buttonMap.get(`${row}-${col}`);
+
             if (button) {
                 renderButton(button);
             } else {
@@ -375,10 +379,13 @@ async function pressButton(position, action) {
 // Start status polling
 function startStatusPolling() {
   setInterval(async () => {
-      await updateStatusFromBackend();
-      await updateSourceVisibility();
-      await updateInputMute();
-      await updateFilterState();
+      // Run all four updates in parallel - each is independent
+      await Promise.all([
+          updateStatusFromBackend(),
+          updateSourceVisibility(),
+          updateInputMute(),
+          updateFilterState(),
+      ]);
   }, 2000);
 }
 
@@ -417,42 +424,48 @@ async function updateStatusFromBackend() {
 
 // Update source visibility for all source buttons
 async function updateSourceVisibility() {
+  if (!currentConfiguration) return;
+
+  // Build a buttonId→params map once so the loop below is O(1) per button
+  const paramsByButtonId = new Map(
+      (currentConfiguration.buttons || [])
+          .filter(b => b.action && b.action.params)
+          .map(b => [b.id, b.action.params])
+  );
+
   const buttons = document.querySelectorAll('.deck-button');
-  
+  const promises = [];
+
   for (const buttonEl of buttons) {
       const actionType = buttonEl.dataset.actionType;
-      
-      if (actionType === 'toggle_source_visibility' || 
-          actionType === 'show_source' || 
+
+      if (actionType === 'toggle_source_visibility' ||
+          actionType === 'show_source' ||
           actionType === 'hide_source') {
-          
+
           const buttonId = buttonEl.dataset.buttonId;
-          
-          if (currentConfiguration && currentConfiguration.buttons) {
-              const button = currentConfiguration.buttons.find(b => b.id === buttonId);
-              if (button && button.action && button.action.params) {
-                  const sceneName = button.action.params.scene_name;
-                  const sourceName = button.action.params.source_name;
-                  
-                  if (sceneName && sourceName) {
-                      try {
-                          const visible = await apiClient.getSourceVisibility(sceneName, sourceName);
-                          sourceVisibility[buttonId] = visible;
-                      } catch (err) {
-                          sourceVisibility[buttonId] = false;
-                      }
-                  }
-              }
+          const params = paramsByButtonId.get(buttonId);
+          const sceneName = params?.scene_name;
+          const sourceName = params?.source_name;
+
+          if (sceneName && sourceName) {
+              promises.push(
+                  apiClient.getSourceVisibility(sceneName, sourceName)
+                      .then(visible => { sourceVisibility[buttonId] = visible; })
+                      .catch(() => { sourceVisibility[buttonId] = false; })
+              );
           }
       }
   }
-  
+
+  await Promise.all(promises);
   updateAllIndicators();
 }
 
 // Update mute state for all input mute buttons
 async function updateInputMute() {
   const buttons = document.querySelectorAll('.deck-button');
+  const promises = [];
 
   for (const buttonEl of buttons) {
     const actionType = buttonEl.dataset.actionType;
@@ -464,22 +477,23 @@ async function updateInputMute() {
       const inputName = buttonEl.dataset.inputName;
 
       if (inputName) {
-        try {
-          const muted = await apiClient.getInputMute(inputName);
-          inputMuted[buttonId] = muted;
-        } catch (err) {
-          inputMuted[buttonId] = false;
-        }
+        promises.push(
+            apiClient.getInputMute(inputName)
+                .then(muted => { inputMuted[buttonId] = muted; })
+                .catch(() => { inputMuted[buttonId] = false; })
+        );
       }
     }
   }
 
+  await Promise.all(promises);
   updateAllIndicators();
 }
 
 // Update filter state for all source filter buttons
 async function updateFilterState() {
   const buttons = document.querySelectorAll('.deck-button');
+  const promises = [];
 
   for (const buttonEl of buttons) {
     const actionType = buttonEl.dataset.actionType;
@@ -492,16 +506,16 @@ async function updateFilterState() {
       const filterName = buttonEl.dataset.filterName;
 
       if (sourceName && filterName) {
-        try {
-          const enabled = await apiClient.getSourceFilterEnabled(sourceName, filterName);
-          filterEnabled[buttonId] = enabled;
-        } catch (err) {
-          filterEnabled[buttonId] = false;
-        }
+        promises.push(
+            apiClient.getSourceFilterEnabled(sourceName, filterName)
+                .then(enabled => { filterEnabled[buttonId] = enabled; })
+                .catch(() => { filterEnabled[buttonId] = false; })
+        );
       }
     }
   }
 
+  await Promise.all(promises);
   updateAllIndicators();
 }
 
