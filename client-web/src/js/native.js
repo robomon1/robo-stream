@@ -1,5 +1,6 @@
 // Native Features - Capacitor Plugin Integration
 // Add to src/js/native.js
+import { KeepAwake } from '@capacitor-community/keep-awake';
 
 // Check if running as native app
 export function isNativeApp() {
@@ -35,7 +36,10 @@ export async function initializeNativeFeatures() {
     
     // Initialize app listeners
     initializeAppListeners();
-    
+
+    // Keep screen awake while app is active
+    await keepScreenAwake(true);
+
     console.log('✓ Native features initialized');
   } catch (error) {
     console.error('Failed to initialize native features:', error);
@@ -98,11 +102,15 @@ function initializeAppListeners() {
   // App state change
   App.addListener('appStateChange', ({ isActive }) => {
     console.log('App state changed:', isActive ? 'active' : 'background');
-    
+
     if (isActive) {
-      // App came to foreground - refresh status
+      // App came to foreground - refresh status and re-acquire wake lock
       console.log('App resumed - refreshing status');
+      keepScreenAwake(true);
       window.dispatchEvent(new CustomEvent('app-resumed'));
+    } else {
+      // App went to background - release wake lock
+      keepScreenAwake(false);
     }
   });
   
@@ -173,13 +181,7 @@ export async function hapticSelection() {
 // Keep screen awake (prevent sleep during streaming)
 export async function keepScreenAwake(enable = true) {
   if (!isNativeApp()) return;
-  if (!window.Capacitor?.Plugins?.KeepAwake) {
-    console.warn('KeepAwake plugin not available');
-    return;
-  }
-  
-  const { KeepAwake } = window.Capacitor.Plugins;
-  
+
   try {
     if (enable) {
       await KeepAwake.keepAwake();
