@@ -71,13 +71,31 @@ func (cm *ConfigManager) Get(id string) (*models.Configuration, error) {
 	return cfg, nil
 }
 
-// List returns all configurations
+// List returns all configurations (full data including Buttons map)
 func (cm *ConfigManager) List() []*models.Configuration {
 	configs := make([]*models.Configuration, 0, len(cm.configs))
 	for _, cfg := range cm.configs {
 		configs = append(configs, cfg)
 	}
 	return configs
+}
+
+// ListSummaries returns lightweight summaries of all configurations.
+// Summaries omit the Buttons map so clients can render a config picker
+// without receiving all button position/ID data.
+func (cm *ConfigManager) ListSummaries() []*models.ConfigurationSummary {
+	summaries := make([]*models.ConfigurationSummary, 0, len(cm.configs))
+	for _, cfg := range cm.configs {
+		summaries = append(summaries, &models.ConfigurationSummary{
+			ID:          cfg.ID,
+			Name:        cfg.Name,
+			Description: cfg.Description,
+			Grid:        cfg.Grid,
+			IsDefault:   cfg.IsDefault,
+			ButtonCount: len(cfg.Buttons),
+		})
+	}
+	return summaries
 }
 
 // Update updates an existing configuration
