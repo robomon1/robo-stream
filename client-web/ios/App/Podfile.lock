@@ -3,6 +3,8 @@ PODS:
     - CapacitorCordova
   - CapacitorApp (5.0.8):
     - Capacitor
+  - CapacitorCommunityKeepAwake (4.0.0):
+    - Capacitor
   - CapacitorCordova (5.7.8)
   - CapacitorHaptics (5.0.8):
     - Capacitor
@@ -16,6 +18,7 @@ PODS:
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
+  - "CapacitorCommunityKeepAwake (from `../../node_modules/@capacitor-community/keep-awake`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
   - "CapacitorKeyboard (from `../../node_modules/@capacitor/keyboard`)"
@@ -27,6 +30,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorApp:
     :path: "../../node_modules/@capacitor/app"
+  CapacitorCommunityKeepAwake:
+    :path: "../../node_modules/@capacitor-community/keep-awake"
   CapacitorCordova:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorHaptics:
@@ -41,12 +46,13 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   Capacitor: 9686e5711b48a1aa84671ede795d0175848abcba
   CapacitorApp: 8026f7ce1ac72780258d05a90c07deb5c724c0fa
+  CapacitorCommunityKeepAwake: 6106b37df55fd4f06e47a2af701ce0dd6ffae1ba
   CapacitorCordova: 31ab98dca2ddcee051027a1afe7e8c85c82f7297
   CapacitorHaptics: acd823c6ed0ec2cd968a09316768144b0495a1e7
   CapacitorKeyboard: 38db46e3e9a8024814994b5a909f102f3d27c207
   CapacitorSplashScreen: 0b962a2bee014151569dc59b089ba0e93daeeaf0
   CapacitorStatusBar: 8e0a8f213504695505dc8c4f808dffbe03aa0e0f
 
-PODFILE CHECKSUM: 87b45c567a9ade1f887a2656149fdc2650659cfa
+PODFILE CHECKSUM: afb2b7e4fca9af04134905f46bf9c094d34ad63e
 
 COCOAPODS: 1.16.2
