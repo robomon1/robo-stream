@@ -61,11 +61,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "electron-assets/icon.ico"
@@ -124,6 +128,7 @@
     "@capacitor/ios": "^5.5.0",
     "@capacitor/keyboard": "^5.0.0",
     "@capacitor/splash-screen": "^5.0.0",
-    "@capacitor/status-bar": "^5.0.0"
+    "@capacitor/status-bar": "^5.0.0",
+    "lucide": "^0.575.0"
   }
 }

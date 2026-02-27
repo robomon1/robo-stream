@@ -1,6 +1,7 @@
 // Robo-Stream Web Client - Touchscreen Optimized
 import { APIClient } from './api.js';
 import { initializeNativeFeatures, hapticFeedback, isNativeApp } from './native.js';
+import { createIcons, icons } from 'lucide';
 
 let currentConfiguration = null;
 let apiClient = null;
@@ -32,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
     
     // Initialize Lucide icons
-    lucide.createIcons();
+    createIcons({ icons });
 });
 
 // Initialize application
@@ -164,7 +165,7 @@ function renderButtonGrid() {
     }
 
     // Reinitialize icons
-    setTimeout(() => lucide.createIcons(), 50);
+    setTimeout(() => createIcons({ icons }), 50);
 }
 
 // Render a button
@@ -573,7 +574,7 @@ async function updateFilterState() {
 // Open settings modal
 function openSettings() {
     document.getElementById('settings-modal').classList.add('open');
-    setTimeout(() => lucide.createIcons(), 100);
+    setTimeout(() => createIcons({ icons }), 100);
 }
 
 // Close settings modal
@@ -606,7 +607,7 @@ async function openConfigSelector() {
         const configurations = configListCache || await apiClient.getConfigurations();
         renderConfigList(configurations);
         document.getElementById('config-modal').classList.add('open');
-        setTimeout(() => lucide.createIcons(), 100);
+        setTimeout(() => createIcons({ icons }), 100);
     } catch (err) {
         console.error('Failed to load configurations:', err);
         showConnectionBanner('Error loading configurations: ' + err.message, 'error');
