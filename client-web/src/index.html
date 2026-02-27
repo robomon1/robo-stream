@@ -10,12 +10,11 @@
     <title>Robo-Stream Client</title>
     <link rel="stylesheet" href="/css/app.css">
     <link rel="manifest" href="/manifest.json">
-    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-    <!-- Connection Banner -->
-    <div id="connection-banner" class="banner">
-        <span id="banner-message"></span>
+    <!-- Connection Banner — visible immediately so the user sees feedback before JS runs -->
+    <div id="connection-banner" class="banner show connecting">
+        <span id="banner-message">Connecting to server...</span>
     </div>
 
     <!-- Top Bar -->
@@ -42,7 +41,13 @@
 
     <!-- Main Button Grid -->
     <main class="main-content">
-        <div id="button-grid" class="button-grid"></div>
+        <div id="button-grid" class="button-grid">
+            <!-- Shown immediately while JS connects; replaced once config loads -->
+            <div class="loading-state" id="loading-state">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Connecting to Robo-Stream server…</p>
+            </div>
+        </div>
     </main>
 
     <!-- Settings Modal -->
