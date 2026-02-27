@@ -17,6 +17,10 @@ let sourceVisibility = {};
 let inputMuted = {};
 let filterEnabled = {};
 
+// Config caches — avoid redundant fetches
+let configListCache = null;        // lightweight summaries for the selector
+let resolvedConfigCache = {};      // configId → full resolved config
+
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Robo-Stream Web Client starting...');
@@ -58,6 +62,16 @@ async function connectAndLoad() {
         console.log('Registering with server...');
         const config = await apiClient.register();
         showConnectionBanner('Connected to server', 'connected');
+
+        // Cache this config so switching back to it is instant
+        if (config && config.id) {
+            resolvedConfigCache[config.id] = config;
+        }
+
+        // Pre-fetch the config list in the background so the selector opens instantly
+        apiClient.getConfigurations()
+            .then(list => { configListCache = list; })
+            .catch(() => {});
 
         handleConfigurationLoaded(config);
 
@@ -434,7 +448,10 @@ async function updateSourceVisibility() {
   );
 
   const buttons = document.querySelectorAll('.deck-button');
-  const promises = [];
+
+  // Deduplicate: collect unique (scene, source) pairs to avoid querying OBS
+  // multiple times for buttons that reference the same source in the same scene
+  const keyToButtonIds = new Map(); // "scene||source" → { sceneName, sourceName, buttonIds[] }
 
   for (const buttonEl of buttons) {
       const actionType = buttonEl.dataset.actionType;
@@ -449,13 +466,23 @@ async function updateSourceVisibility() {
           const sourceName = params?.source_name;
 
           if (sceneName && sourceName) {
-              promises.push(
-                  apiClient.getSourceVisibility(sceneName, sourceName)
-                      .then(visible => { sourceVisibility[buttonId] = visible; })
-                      .catch(() => { sourceVisibility[buttonId] = false; })
-              );
+              const key = `${sceneName}||${sourceName}`;
+              if (!keyToButtonIds.has(key)) {
+                  keyToButtonIds.set(key, { sceneName, sourceName, buttonIds: [] });
+              }
+              keyToButtonIds.get(key).buttonIds.push(buttonId);
           }
       }
+  }
+
+  // One API call per unique (scene, source) pair
+  const promises = [];
+  for (const { sceneName, sourceName, buttonIds } of keyToButtonIds.values()) {
+      promises.push(
+          apiClient.getSourceVisibility(sceneName, sourceName)
+              .then(visible => { for (const id of buttonIds) sourceVisibility[id] = visible; })
+              .catch(() => { for (const id of buttonIds) sourceVisibility[id] = false; })
+      );
   }
 
   await Promise.all(promises);
@@ -465,7 +492,10 @@ async function updateSourceVisibility() {
 // Update mute state for all input mute buttons
 async function updateInputMute() {
   const buttons = document.querySelectorAll('.deck-button');
-  const promises = [];
+
+  // Deduplicate: one OBS call per unique input name, applied to all buttons
+  // that reference that input (mute/unmute/toggle buttons for the same mic)
+  const inputToButtonIds = new Map(); // inputName → buttonId[]
 
   for (const buttonEl of buttons) {
     const actionType = buttonEl.dataset.actionType;
@@ -473,17 +503,26 @@ async function updateInputMute() {
     if (actionType === 'toggle_input_mute' ||
         actionType === 'mute_input' ||
         actionType === 'unmute_input') {
-      const buttonId = buttonEl.dataset.buttonId;
       const inputName = buttonEl.dataset.inputName;
+      const buttonId = buttonEl.dataset.buttonId;
 
       if (inputName) {
-        promises.push(
-            apiClient.getInputMute(inputName)
-                .then(muted => { inputMuted[buttonId] = muted; })
-                .catch(() => { inputMuted[buttonId] = false; })
-        );
+        if (!inputToButtonIds.has(inputName)) {
+          inputToButtonIds.set(inputName, []);
+        }
+        inputToButtonIds.get(inputName).push(buttonId);
       }
     }
+  }
+
+  // One API call per unique input name
+  const promises = [];
+  for (const [inputName, buttonIds] of inputToButtonIds) {
+    promises.push(
+        apiClient.getInputMute(inputName)
+            .then(muted => { for (const id of buttonIds) inputMuted[id] = muted; })
+            .catch(() => { for (const id of buttonIds) inputMuted[id] = false; })
+    );
   }
 
   await Promise.all(promises);
@@ -493,7 +532,9 @@ async function updateInputMute() {
 // Update filter state for all source filter buttons
 async function updateFilterState() {
   const buttons = document.querySelectorAll('.deck-button');
-  const promises = [];
+
+  // Deduplicate: one OBS call per unique (source, filter) pair
+  const keyToButtonIds = new Map(); // "source||filter" → { sourceName, filterName, buttonIds[] }
 
   for (const buttonEl of buttons) {
     const actionType = buttonEl.dataset.actionType;
@@ -501,18 +542,28 @@ async function updateFilterState() {
     if (actionType === 'toggle_source_filter' ||
         actionType === 'enable_source_filter' ||
         actionType === 'disable_source_filter') {
-      const buttonId = buttonEl.dataset.buttonId;
       const sourceName = buttonEl.dataset.sourceName;
       const filterName = buttonEl.dataset.filterName;
+      const buttonId = buttonEl.dataset.buttonId;
 
       if (sourceName && filterName) {
-        promises.push(
-            apiClient.getSourceFilterEnabled(sourceName, filterName)
-                .then(enabled => { filterEnabled[buttonId] = enabled; })
-                .catch(() => { filterEnabled[buttonId] = false; })
-        );
+        const key = `${sourceName}||${filterName}`;
+        if (!keyToButtonIds.has(key)) {
+          keyToButtonIds.set(key, { sourceName, filterName, buttonIds: [] });
+        }
+        keyToButtonIds.get(key).buttonIds.push(buttonId);
       }
     }
+  }
+
+  // One API call per unique (source, filter) pair
+  const promises = [];
+  for (const { sourceName, filterName, buttonIds } of keyToButtonIds.values()) {
+    promises.push(
+        apiClient.getSourceFilterEnabled(sourceName, filterName)
+            .then(enabled => { for (const id of buttonIds) filterEnabled[id] = enabled; })
+            .catch(() => { for (const id of buttonIds) filterEnabled[id] = false; })
+    );
   }
 
   await Promise.all(promises);
@@ -551,7 +602,8 @@ async function updateServerURL() {
 // Open configuration selector
 async function openConfigSelector() {
     try {
-        const configurations = await apiClient.getConfigurations();
+        // Use cached list if available (pre-fetched at startup); otherwise fetch now
+        const configurations = configListCache || await apiClient.getConfigurations();
         renderConfigList(configurations);
         document.getElementById('config-modal').classList.add('open');
         setTimeout(() => lucide.createIcons(), 100);
@@ -584,7 +636,9 @@ function renderConfigList(configurations) {
             item.classList.add('active');
         }
 
-        const buttonCount = config.buttons ? Object.keys(config.buttons).length : 0;
+        // button_count is set by the new summary endpoint;
+        // fall back to counting the raw buttons map for old server versions
+        const buttonCount = config.button_count ?? (config.buttons ? Object.keys(config.buttons).length : 0);
 
         item.innerHTML = `
             <div class="config-item-header">
@@ -601,7 +655,12 @@ function renderConfigList(configurations) {
 
         item.addEventListener('click', async () => {
             try {
-                const resolved = await apiClient.getConfiguration(config.id);
+                // Use cached resolved config if available; otherwise fetch and cache it
+                let resolved = resolvedConfigCache[config.id];
+                if (!resolved) {
+                    resolved = await apiClient.getConfiguration(config.id);
+                    resolvedConfigCache[config.id] = resolved;
+                }
                 handleConfigurationLoaded(resolved);
                 closeConfigSelector();
             } catch (err) {

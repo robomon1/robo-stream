@@ -103,10 +103,11 @@ func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// listConfigurations returns all configurations
+// listConfigurations returns lightweight summaries of all configurations.
+// Full button data is only returned when a specific configuration is requested.
 func (s *Server) listConfigurations(w http.ResponseWriter, r *http.Request) {
-	configs := s.configManager.List()
-	s.respondJSON(w, http.StatusOK, configs)
+	summaries := s.configManager.ListSummaries()
+	s.respondJSON(w, http.StatusOK, summaries)
 }
 
 // getDefaultConfiguration returns the default configuration with resolved buttons

@@ -20,6 +20,18 @@ type GridConfig struct {
 	Cols int `json:"cols"`
 }
 
+// ConfigurationSummary is the lightweight version returned by the list endpoint.
+// It omits the full Buttons map so clients can display a config picker without
+// fetching all button data upfront.
+type ConfigurationSummary struct {
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Grid        GridConfig `json:"grid"`
+	IsDefault   bool       `json:"is_default"`
+	ButtonCount int        `json:"button_count"`
+}
+
 // ResolvedConfiguration is what gets sent to clients with full button details
 type ResolvedConfiguration struct {
 	ID      string            `json:"id"`
