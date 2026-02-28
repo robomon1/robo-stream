@@ -14,8 +14,11 @@ type Button struct {
 	UpdatedAt   time.Time    `json:"updated_at"`
 }
 
-// ButtonAction defines what the button does
+// ButtonAction defines what the button does.
+// Controller names which controller handles this action (e.g. "obs", "zoom").
+// An empty Controller defaults to "obs" for backwards compatibility.
 type ButtonAction struct {
-	Type   string                 `json:"type"`
-	Params map[string]interface{} `json:"params,omitempty"`
+	Controller string                 `json:"controller,omitempty"`
+	Type       string                 `json:"type"`
+	Params     map[string]interface{} `json:"params,omitempty"`
 }

@@ -1,6 +1,34 @@
+export namespace controller {
+	
+	export class ConfigField {
+	    key: string;
+	    label: string;
+	    type: string;
+	    required?: boolean;
+	    default?: string;
+	    help?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConfigField(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.type = source["type"];
+	        this.required = source["required"];
+	        this.default = source["default"];
+	        this.help = source["help"];
+	    }
+	}
+
+}
+
 export namespace models {
 	
 	export class ButtonAction {
+	    controller?: string;
 	    type: string;
 	    params?: Record<string, any>;
 	
@@ -10,6 +38,7 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.controller = source["controller"];
 	        this.type = source["type"];
 	        this.params = source["params"];
 	    }
@@ -166,20 +195,6 @@ export namespace models {
 		}
 	}
 	
-	export class OBSConfig {
-	    url: string;
-	    password: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new OBSConfig(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.url = source["url"];
-	        this.password = source["password"];
-	    }
-	}
 	export class ResolvedButton {
 	    id: string;
 	    row: number;
