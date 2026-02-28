@@ -14,6 +14,10 @@ export
 # Version (update this for releases)
 VERSION ?= 1.0.0
 
+# Auto-generated build number: Unix timestamp minus 1,000,000,000
+# Current value ~740M, max Android/iOS limit is 2.1B (~43 years of headroom)
+BUILD := $(shell echo $$(($$(date +%s) - 1000000000)))
+
 # Directories
 SERVER_DIR = server
 CLIENT_DIR = client-web
@@ -60,11 +64,12 @@ help:
 	@echo ""
 	@echo "Version management:"
 	@echo "  make version                                - Show all current versions"
-	@echo "  make set-client-version VERSION=x.x.x BUILD=n - Set client version"
-	@echo "  make set-server-version VERSION=x.x.x       - Set server version"
-	@echo "  make set-version VERSION=x.x.x BUILD=n      - Set both versions"
+	@echo "  make set-client-version VERSION=x.x.x - Set client version (build auto-generated)"
+	@echo "  make set-server-version VERSION=x.x.x - Set server version"
+	@echo "  make set-version VERSION=x.x.x        - Set both versions (build auto-generated)"
 	@echo ""
-	@echo "Example: make set-client-version VERSION=1.0.1 BUILD=2"
+	@echo "Example: make set-client-version VERSION=1.0.1"
+	@echo "  Build number is auto-calculated as: unix timestamp - 1,000,000,000"
 
 #==============================================================================
 # Main Targets
@@ -360,33 +365,28 @@ version:
 set-client-version:
 	@if [ -z "$(VERSION)" ]; then \
 		echo "❌ Error: VERSION not specified"; \
-		echo "Usage: make set-client-version VERSION=1.0.0 BUILD=1"; \
-		exit 1; \
-	fi
-	@if [ -z "$(BUILD)" ]; then \
-		echo "❌ Error: BUILD not specified"; \
-		echo "Usage: make set-client-version VERSION=1.0.0 BUILD=1"; \
+		echo "Usage: make set-client-version VERSION=1.0.0"; \
 		exit 1; \
 	fi
 	@echo "Setting client version to $(VERSION) (build $(BUILD))..."
 	@echo ""
-	
+
 	@# Update client package.json
 	@echo "📦 Updating package.json..."
 	cd $(CLIENT_DIR) && npm version $(VERSION) --no-git-tag-version --allow-same-version
-	
+
 	@# Update Android
 	@echo "🤖 Updating Android..."
 	@sed -i.bak 's/versionName = ".*"/versionName = "$(VERSION)"/' $(CLIENT_DIR)/android/app/build.gradle
 	@sed -i.bak 's/versionCode = [0-9]*/versionCode = $(BUILD)/' $(CLIENT_DIR)/android/app/build.gradle
 	@rm $(CLIENT_DIR)/android/app/build.gradle.bak
-	
+
 	@# Update iOS via xcodeproj
 	@echo "🍎 Updating iOS..."
 	@sed -i.bak 's/MARKETING_VERSION = .*/MARKETING_VERSION = $(VERSION);/' $(CLIENT_DIR)/ios/App/App.xcodeproj/project.pbxproj
 	@sed -i.bak 's/CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $(BUILD);/' $(CLIENT_DIR)/ios/App/App.xcodeproj/project.pbxproj
 	@rm -f $(CLIENT_DIR)/ios/App/App.xcodeproj/project.pbxproj.bak
-	
+
 	@echo ""
 	@echo "✅ Client version updated to $(VERSION) (build $(BUILD))"
 	@echo ""
