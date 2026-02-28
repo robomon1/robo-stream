@@ -702,4 +702,13 @@ function hideConnectionBanner() {
 
 document.addEventListener('DOMContentLoaded', async () => {
     await initializeNativeFeatures();
+
+    // Show version in title bar
+    try {
+        const info = await getAppInfo();
+        if (info) {
+            const titleVersion = document.getElementById('title-version');
+            if (titleVersion) titleVersion.textContent = `v${info.version}`;
+        }
+    } catch (e) { /* ignore */ }
   });

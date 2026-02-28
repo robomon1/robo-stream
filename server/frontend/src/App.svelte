@@ -57,7 +57,7 @@
     <aside class="sidebar">
       <div class="logo">
         <h1>Robo-Stream</h1>
-        <p>Server</p>
+        <p>Server <span class="version">{serverInfo.version ? `v${serverInfo.version}` : ''}</span></p>
       </div>
 
       <div class="status-panel">
@@ -176,6 +176,10 @@
   .logo p {
     font-size: 12px;
     color: #94a3b8;
+  }
+
+  .logo .version {
+    opacity: 0.6;
   }
 
   .status-panel {

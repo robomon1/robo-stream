@@ -415,12 +415,19 @@ set-server-version:
 		sed -i.bak 's/"productVersion": ".*"/"productVersion": "$(VERSION)"/' $(SERVER_DIR)/wails.json 2>/dev/null || true; \
 		rm -f $(SERVER_DIR)/wails.json.bak; \
 	fi
-	
+
+	@# Update server/version.go
+	@if [ -f "$(SERVER_DIR)/version.go" ]; then \
+		sed -i.bak 's/var Version = ".*"/var Version = "$(VERSION)"/' $(SERVER_DIR)/version.go 2>/dev/null || true; \
+		rm -f $(SERVER_DIR)/version.go.bak; \
+	fi
+
 	@echo ""
 	@echo "✅ Server version updated to $(VERSION)"
 	@echo ""
 	@echo "Updated files:"
 	@echo "  • $(SERVER_DIR)/wails.json"
+	@echo "  • $(SERVER_DIR)/version.go"
 	@echo ""
 	@echo "Next steps:"
 	@echo "  1. git add -A"
