@@ -327,7 +327,7 @@ export async function getAppInfo() {
   if (!isNativeApp()) {
     return {
       name: 'RoboStream',
-      version: '1.0.0',
+      version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0',
       build: 'web'
     };
   }

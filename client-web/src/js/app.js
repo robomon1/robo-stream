@@ -1,6 +1,6 @@
 // Robo-Stream Web Client - Touchscreen Optimized
 import { APIClient } from './api.js';
-import { initializeNativeFeatures, hapticFeedback, isNativeApp } from './native.js';
+import { initializeNativeFeatures, hapticFeedback, isNativeApp, getAppInfo } from './native.js';
 import { createIcons, icons } from 'lucide';
 
 let currentConfiguration = null;
@@ -572,9 +572,19 @@ async function updateFilterState() {
 }
 
 // Open settings modal
-function openSettings() {
+async function openSettings() {
     document.getElementById('settings-modal').classList.add('open');
     setTimeout(() => createIcons({ icons }), 100);
+
+    // Populate version
+    try {
+        const info = await getAppInfo();
+        const versionEl = document.getElementById('app-version');
+        if (versionEl && info) {
+            const build = info.build && info.build !== 'web' ? ` (${info.build})` : '';
+            versionEl.textContent = `v${info.version}${build}`;
+        }
+    } catch (e) { /* ignore */ }
 }
 
 // Close settings modal
