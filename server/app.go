@@ -501,7 +501,7 @@ func (a *App) GetServerInfo() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"version":         "1.0.0",
+		"version":         Version,
 		"api_port":        8080,
 		"ip_addresses":    ips,
 		"client_urls":     clientURLs,
