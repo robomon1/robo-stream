@@ -209,6 +209,7 @@
                 <li><strong>Transmission Port:</strong> 1234 (matches Feedback Listen Port above)</li>
                 <li><strong>Receiving Port:</strong> 9090 (matches ZoomOSC Receiving Port above)</li>
               </ul>
+              <p class="warn">⚠️ Always start or join meetings <strong>through ZoomOSC</strong> (its built-in Start/Join buttons), not through the Zoom app. ZoomOSC must own the meeting session to control audio and video.</p>
             </div>
           {/if}
 
@@ -450,6 +451,11 @@
 
   .instructions strong {
     color: #cbd5e1;
+  }
+
+  .instructions .warn {
+    margin: 8px 0 0;
+    color: #fbbf24;
   }
 
   .config-footer {

@@ -74,6 +74,7 @@ ps aux | grep controller
    - **Transmission IP:** `127.0.0.1`
    - **Transmission Port:** `1234`  ← ZoomOSC sends status to this port
    - **Receiving Port:** `9090`     ← ZoomOSC listens for commands on this port
+3. **Always start or join meetings through ZoomOSC** using its built-in Start/Join buttons — not through the Zoom app. ZoomOSC uses the Zoom SDK and must own the meeting session. Joining via the Zoom app directly causes commands to fail with "error 4".
 
 ### Build & Install ZoomOSC Plugin
 

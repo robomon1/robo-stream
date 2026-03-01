@@ -71,6 +71,12 @@ The binary must be named `zoomosc-controller` (or `zoomosc-controller.exe` on Wi
 
 The ZoomOSC controller will be discovered automatically on the next server start.
 
+### 5. Join meetings through ZoomOSC
+
+> **Important:** You must start or join Zoom meetings **through ZoomOSC**, not through the Zoom app directly. ZoomOSC uses the Zoom SDK and needs to own the meeting session in order to control audio, video, and sharing.
+>
+> Open ZoomOSC and use its built-in **Start** or **Join** buttons to enter a meeting. If you join via the Zoom app directly, ZoomOSC cannot hook into the session and all commands will fail with an error.
+
 ## Build from Source
 
 ```bash
@@ -93,8 +99,11 @@ make build-all      # all platforms (darwin arm64/amd64, windows, linux)
 - Verify ZoomOSC Transmission IP/Port match this plugin's `listen_port`
 - Check that no firewall is blocking UDP on ports 9090 and 1234
 
+**Commands fail / ZoomOSC logs "error 4"**
+- You must join the meeting **through ZoomOSC** (not through the Zoom app). Open ZoomOSC and use its Start/Join buttons to enter the meeting. ZoomOSC needs to own the SDK session to control audio, video, and sharing.
+
 **Commands don't work in meetings**
-- ZoomOSC's free tier supports self-control (mute/video/share). These actions require you to be in a meeting.
+- ZoomOSC's free tier supports self-control (mute/video/share). These actions require you to be in a meeting joined via ZoomOSC.
 - Some actions (spotlight, pin others) require ZoomOSC Pro
 
 ---
