@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
 
   let controllers = [];
+  let controllerOrder = []; // stable first-seen insertion order of IDs
   let statuses = {};       // id → status map
   let schemas = {};        // id → config schema array
   let configs = {};        // id → current config
@@ -21,7 +22,21 @@
 
   async function refresh() {
     try {
-      controllers = await window.go.main.App.GetControllers();
+      const fresh = await window.go.main.App.GetControllers();
+
+      // Maintain a stable insertion-order list of IDs so the list never
+      // reorders on the screen between polls (even if the backend returns
+      // items in a different order due to map-iteration randomness).
+      const freshMap = new Map(fresh.map(c => [c.id, c]));
+      for (const c of fresh) {
+        if (!controllerOrder.includes(c.id)) {
+          controllerOrder.push(c.id);
+        }
+      }
+      controllers = controllerOrder
+        .filter(id => freshMap.has(id))
+        .map(id => freshMap.get(id));
+
       for (const c of controllers) {
         statuses[c.id] = await window.go.main.App.GetControllerStatus(c.id);
       }

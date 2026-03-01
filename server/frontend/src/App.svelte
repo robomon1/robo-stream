@@ -11,6 +11,7 @@
   let serverInfo = {};
   let obsStatus = {};
   let controllers = [];
+  let controllerOrder = []; // stable first-seen insertion order of IDs
 
   onMount(async () => {
     loadServerInfo();
@@ -46,7 +47,19 @@
 
   async function loadControllers() {
     try {
-      controllers = await window.go.main.App.GetControllers();
+      const fresh = await window.go.main.App.GetControllers();
+
+      // Maintain a stable insertion-order list so the sidebar never reorders
+      // between polls regardless of what order the backend returns items.
+      const freshMap = new Map(fresh.map(c => [c.id, c]));
+      for (const c of fresh) {
+        if (!controllerOrder.includes(c.id)) {
+          controllerOrder.push(c.id);
+        }
+      }
+      controllers = controllerOrder
+        .filter(id => freshMap.has(id))
+        .map(id => freshMap.get(id));
     } catch (err) {
       console.error('Failed to load controllers:', err);
     }
@@ -73,7 +86,7 @@
       </div>
 
       <div class="status-panel">
-        {#each controllers as ctrl}
+        {#each controllers as ctrl (ctrl.id)}
           <div class="status-item">
             <span class="indicator {ctrl.connected ? 'connected' : 'disconnected'}"></span>
             <span>{ctrl.name} {ctrl.connected ? '' : '(offline)'}</span>
