@@ -5,19 +5,23 @@
   import ButtonLibrary from './lib/ButtonLibrary.svelte';
   import Clients from './lib/Clients.svelte';
   import OBSSettings from './lib/OBSSettings.svelte';
+  import Controllers from './lib/Controllers.svelte';
 
   let currentView = 'dashboard';
   let serverInfo = {};
   let obsStatus = {};
+  let controllers = [];
 
   onMount(async () => {
     loadServerInfo();
     loadOBSStatus();
-    
+    loadControllers();
+
     // Refresh every 5 seconds
     setInterval(loadServerInfo, 5000);
     setInterval(loadOBSStatus, 5000);
-    
+    setInterval(loadControllers, 5000);
+
     // Initialize icons
     if (window.lucide) {
       lucide.createIcons();
@@ -37,6 +41,14 @@
       obsStatus = await window.go.main.App.GetOBSStatus();
     } catch (err) {
       console.error('Failed to load OBS status:', err);
+    }
+  }
+
+  async function loadControllers() {
+    try {
+      controllers = await window.go.main.App.GetControllers();
+    } catch (err) {
+      console.error('Failed to load controllers:', err);
     }
   }
 
@@ -61,10 +73,18 @@
       </div>
 
       <div class="status-panel">
-        <div class="status-item">
-          <span class="indicator {obsStatus.connected ? 'connected' : 'disconnected'}"></span>
-          <span>{obsStatus.connected ? 'OBS Connected' : 'OBS Disconnected'}</span>
-        </div>
+        {#each controllers as ctrl}
+          <div class="status-item">
+            <span class="indicator {ctrl.connected ? 'connected' : 'disconnected'}"></span>
+            <span>{ctrl.name} {ctrl.connected ? '' : '(offline)'}</span>
+          </div>
+        {/each}
+        {#if controllers.length === 0}
+          <div class="status-item">
+            <span class="indicator disconnected"></span>
+            <span>No controllers</span>
+          </div>
+        {/if}
         <div class="stats">
           <div class="stat">
             <span class="stat-value">{serverInfo.active_sessions || 0}</span>
@@ -110,7 +130,14 @@
           <i data-lucide="users"></i>
           Clients
         </button>
-        <button 
+        <button
+          class="nav-item {currentView === 'controllers' ? 'active' : ''}"
+          on:click={() => switchView('controllers')}
+        >
+          <i data-lucide="cpu"></i>
+          Controllers
+        </button>
+        <button
           class="nav-item {currentView === 'obs' ? 'active' : ''}"
           on:click={() => switchView('obs')}
         >
@@ -130,6 +157,8 @@
         <ButtonLibrary />
       {:else if currentView === 'clients'}
         <Clients />
+      {:else if currentView === 'controllers'}
+        <Controllers />
       {:else if currentView === 'obs'}
         <OBSSettings />
       {/if}
