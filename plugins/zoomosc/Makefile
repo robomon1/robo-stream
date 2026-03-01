@@ -1,5 +1,5 @@
-BINARY    := zoom-controller
-MODULE    := github.com/robomon1/robostream-zoom-controller
+BINARY    := zoomosc-controller
+MODULE    := github.com/robomon1/robostream-zoomosc-controller
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS   := -ldflags "-s -w -X main.Version=$(VERSION)"
 
