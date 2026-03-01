@@ -9,8 +9,13 @@ import (
 
 // Registry holds all registered controllers and routes button actions to
 // the correct one. It is safe for concurrent use.
+//
+// Controllers are always returned in the order they were first registered,
+// regardless of intermediate unregister/re-register cycles (e.g. a plugin
+// that crashes and restarts keeps its original slot in the list).
 type Registry struct {
 	controllers map[string]Controller
+	order       []string // first-registration order; never shrinks
 	mu          sync.RWMutex
 }
 
@@ -21,7 +26,10 @@ func NewRegistry() *Registry {
 	}
 }
 
-// Register adds a controller. Returns an error if the ID is already taken.
+// Register adds a controller. Returns an error if the ID is already present
+// in the map (i.e. registered without a preceding Unregister call).
+// Calling Register after Unregister for the same ID re-inserts the controller
+// at its original position in the list.
 func (r *Registry) Register(c Controller) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -29,14 +37,28 @@ func (r *Registry) Register(c Controller) error {
 		return fmt.Errorf("controller %q already registered", c.ID())
 	}
 	r.controllers[c.ID()] = c
+	// Append to order only on the very first registration; subsequent
+	// re-registrations (after a crash/unregister) reuse the existing slot.
+	found := false
+	for _, id := range r.order {
+		if id == c.ID() {
+			found = true
+			break
+		}
+	}
+	if !found {
+		r.order = append(r.order, c.ID())
+	}
 	return nil
 }
 
-// Unregister removes a controller by ID. No-op if not found.
+// Unregister removes a controller from the active map but preserves its
+// position in the order slice so that re-registration lands in the same slot.
 func (r *Registry) Unregister(id string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.controllers, id)
+	// Intentionally NOT removing from r.order — see Register.
 }
 
 // Get returns the controller with the given ID.
@@ -47,13 +69,15 @@ func (r *Registry) Get(id string) (Controller, bool) {
 	return c, ok
 }
 
-// List returns all registered controllers in an unspecified order.
+// List returns all active controllers in stable registration order.
 func (r *Registry) List() []Controller {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]Controller, 0, len(r.controllers))
-	for _, c := range r.controllers {
-		result = append(result, c)
+	for _, id := range r.order {
+		if c, ok := r.controllers[id]; ok {
+			result = append(result, c)
+		}
 	}
 	return result
 }

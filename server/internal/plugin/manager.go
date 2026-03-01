@@ -41,24 +41,28 @@ type PluginProcess struct {
 	execPath string
 }
 
+const maxPluginCrashes = 3
+
 // Manager discovers, starts, and monitors plugin subprocesses.
 // It is safe for concurrent use.
 type Manager struct {
-	pluginsDir string
-	storage    *storage.Storage
-	registry   *controller.Registry
-	processes  map[string]*PluginProcess
-	mu         sync.RWMutex
+	pluginsDir  string
+	storage     *storage.Storage
+	registry    *controller.Registry
+	processes   map[string]*PluginProcess
+	crashCounts map[string]int // consecutive crash count per plugin ID
+	mu          sync.RWMutex
 }
 
 // New creates a plugin manager. pluginsDir is the root directory scanned for
 // plugin subdirectories (typically {dataDir}/plugins/).
 func New(pluginsDir string, st *storage.Storage, reg *controller.Registry) *Manager {
 	return &Manager{
-		pluginsDir: pluginsDir,
-		storage:    st,
-		registry:   reg,
-		processes:  make(map[string]*PluginProcess),
+		pluginsDir:  pluginsDir,
+		storage:     st,
+		registry:    reg,
+		processes:   make(map[string]*PluginProcess),
+		crashCounts: make(map[string]int),
 	}
 }
 
@@ -139,21 +143,35 @@ func (m *Manager) Uninstall(id string) error {
 	return os.RemoveAll(pluginDir)
 }
 
-// Restart stops a running plugin and starts it again.
+// Restart stops a running plugin (if running) and starts it again.
+// It also resets the crash counter so the plugin gets a fresh set of retries.
 func (m *Manager) Restart(id string) error {
-	m.mu.RLock()
-	proc, ok := m.processes[id]
-	m.mu.RUnlock()
-	if !ok {
-		return fmt.Errorf("plugin %q not found", id)
-	}
-	execPath := proc.execPath
-	pluginDir := filepath.Dir(execPath)
+	// Reset crash count so the plugin gets a fresh start.
+	m.mu.Lock()
+	m.crashCounts[id] = 0
+	proc, running := m.processes[id]
+	m.mu.Unlock()
 
-	if err := m.stopProcess(id); err != nil {
-		log.Printf("plugin: error stopping %s for restart: %v", id, err)
+	var execPath string
+	if running {
+		execPath = proc.execPath
+		if err := m.stopProcess(id); err != nil {
+			log.Printf("plugin: error stopping %s for restart: %v", id, err)
+		}
+	} else {
+		// Process crashed and gave up — unregister the stale entry so
+		// startPlugin can register a fresh HostController.
+		m.registry.Unregister(id)
+		// Find the binary from disk.
+		pluginDir := filepath.Join(m.pluginsDir, id)
+		var err error
+		execPath, err = findExecutable(pluginDir)
+		if err != nil {
+			return fmt.Errorf("plugin %q: cannot find binary: %w", id, err)
+		}
 	}
-	return m.startPlugin(pluginDir, execPath)
+
+	return m.startPlugin(filepath.Dir(execPath), execPath)
 }
 
 // List returns info about all running plugins.
@@ -224,6 +242,12 @@ func (m *Manager) startPlugin(pluginDir, execPath string) error {
 	}
 
 	log.Printf("plugin: %s v%s started on port %d", msg.ID, msg.Version, msg.Port)
+
+	// A fresh successful start resets the crash counter so the plugin gets
+	// a full new budget of retries if it later crashes after a long uptime.
+	m.mu.Lock()
+	m.crashCounts[msg.ID] = 0
+	m.mu.Unlock()
 
 	// Load persisted config
 	cfg := m.loadConfig(msg.ID)
@@ -302,19 +326,34 @@ func (m *Manager) monitorProcess(proc *PluginProcess) {
 
 	select {
 	case <-proc.stopCh:
-		// Normal shutdown, do nothing
+		// Normal (user-initiated) shutdown — reset crash count.
+		m.mu.Lock()
+		m.crashCounts[proc.ID] = 0
+		m.mu.Unlock()
 		return
 	case err := <-doneCh:
-		log.Printf("plugin: %s exited unexpectedly: %v — will restart in 10s", proc.ID, err)
+		log.Printf("plugin: %s exited unexpectedly: %v", proc.ID, err)
 	}
 
-	// Clean up registry entry
+	// Remove from the process map and increment crash counter.
 	m.mu.Lock()
 	delete(m.processes, proc.ID)
+	m.crashCounts[proc.ID]++
+	count := m.crashCounts[proc.ID]
 	m.mu.Unlock()
+
+	if count > maxPluginCrashes {
+		// Gave up — leave the registry entry so the plugin still appears in
+		// the UI (as disconnected) and the user can manually restart it.
+		log.Printf("plugin: %s has crashed %d times — not restarting. Use the Controllers panel to restart.", proc.ID, count)
+		return
+	}
+
+	log.Printf("plugin: %s crashed (%d/%d), restarting in 10s", proc.ID, count, maxPluginCrashes)
+
+	// Unregister before restart so startPlugin can register a fresh HostController.
 	m.registry.Unregister(proc.ID)
 
-	// Restart after backoff
 	select {
 	case <-proc.stopCh:
 		return
@@ -324,6 +363,9 @@ func (m *Manager) monitorProcess(proc *PluginProcess) {
 	log.Printf("plugin: restarting %s", proc.ID)
 	if err := m.startPlugin(filepath.Dir(proc.execPath), proc.execPath); err != nil {
 		log.Printf("plugin: failed to restart %s: %v", proc.ID, err)
+		// startPlugin failed; the plugin is absent from the registry.
+		// Its position in the order slice is preserved for when it
+		// is manually restarted.
 	}
 }
 

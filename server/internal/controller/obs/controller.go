@@ -3,11 +3,13 @@
 package obs
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/andreykaipov/goobs"
 	"github.com/andreykaipov/goobs/api/requests/filters"
@@ -21,6 +23,12 @@ import (
 	"github.com/robomon1/robo-stream/server/internal/storage"
 )
 
+const (
+	obsHealthCheckInterval = 15 * time.Second
+	obsReconnectDelay      = 10 * time.Second
+	obsMaxReconnects       = 3
+)
+
 // Controller is the built-in OBS Studio controller.
 // In addition to the generic controller.Controller interface it exposes
 // OBS-specific query methods (GetScenes, GetInputs, etc.) that the server
@@ -30,6 +38,12 @@ type Controller struct {
 	url     string
 	storage *storage.Storage
 	mu      sync.RWMutex
+
+	// Reconnection state — all guarded by mu.
+	password          string
+	reconnectAttempts int
+	reconnectGaveUp   bool
+	cancelMonitor     context.CancelFunc
 }
 
 // New creates an OBS controller backed by the provided storage.
@@ -57,9 +71,23 @@ func (c *Controller) IsConnected() bool {
 func (c *Controller) GetStatus() map[string]interface{} {
 	c.mu.RLock()
 	client := c.client
+	gaveUp := c.reconnectGaveUp
+	attempts := c.reconnectAttempts
 	c.mu.RUnlock()
 
 	if client == nil {
+		if gaveUp {
+			return map[string]interface{}{
+				"connected": false,
+				"error":     "Connection to OBS lost. Reconnect attempts exhausted — click Save & Connect to try again.",
+			}
+		}
+		if attempts > 0 {
+			return map[string]interface{}{
+				"connected": false,
+				"error":     fmt.Sprintf("OBS disconnected — reconnecting… (attempt %d/%d)", attempts, obsMaxReconnects),
+			}
+		}
 		return map[string]interface{}{"connected": false}
 	}
 
@@ -557,31 +585,127 @@ func (c *Controller) ExecuteAction(action models.ButtonAction) error {
 // them via a type assertion on the value returned from registry.Get("obs").
 
 // Connect establishes the OBS WebSocket connection.
+// On success it starts a background health-check monitor that will attempt
+// up to obsMaxReconnects automatic reconnects if the connection drops.
 func (c *Controller) Connect(url, password string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.client != nil {
-		c.client.Disconnect()
+	// Cancel any previously running monitor.
+	if c.cancelMonitor != nil {
+		c.cancelMonitor()
+		c.cancelMonitor = nil
 	}
-	client, err := goobs.New(url, goobs.WithPassword(password))
-	if err != nil {
-		return fmt.Errorf("failed to connect to OBS: %w", err)
-	}
-	c.client = client
-	c.url = url
-	return nil
-}
 
-// Disconnect closes the OBS WebSocket connection.
-func (c *Controller) Disconnect() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.client != nil {
 		c.client.Disconnect()
 		c.client = nil
 	}
+
+	client, err := goobs.New(url, goobs.WithPassword(password))
+	if err != nil {
+		return fmt.Errorf("failed to connect to OBS: %w", err)
+	}
+
+	c.client = client
+	c.url = url
+	c.password = password
+	c.reconnectAttempts = 0
+	c.reconnectGaveUp = false
+
+	ctx, cancel := context.WithCancel(context.Background())
+	c.cancelMonitor = cancel
+	go c.connectionMonitor(ctx, url, password)
+
 	return nil
+}
+
+// Disconnect closes the OBS WebSocket connection and stops the monitor.
+func (c *Controller) Disconnect() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.cancelMonitor != nil {
+		c.cancelMonitor()
+		c.cancelMonitor = nil
+	}
+	if c.client != nil {
+		c.client.Disconnect()
+		c.client = nil
+	}
+	c.reconnectAttempts = 0
+	c.reconnectGaveUp = false
+	return nil
+}
+
+// connectionMonitor runs in a goroutine after a successful Connect.
+// It periodically checks the OBS connection and, if it drops, attempts
+// up to obsMaxReconnects reconnects before giving up.
+// The goroutine exits when ctx is cancelled (i.e. on Disconnect or a new Connect).
+func (c *Controller) connectionMonitor(ctx context.Context, url, password string) {
+	ticker := time.NewTicker(obsHealthCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.mu.RLock()
+			client := c.client
+			c.mu.RUnlock()
+
+			if client == nil {
+				return // Already disconnected externally.
+			}
+
+			if _, err := client.Stream.GetStreamStatus(); err == nil {
+				continue // Still healthy.
+			}
+
+			// Connection dropped — nil the client so the UI shows disconnected.
+			log.Printf("obs: connection to OBS lost, will attempt to reconnect")
+			c.mu.Lock()
+			if c.client != nil {
+				c.client.Disconnect()
+				c.client = nil
+			}
+			c.mu.Unlock()
+
+			// Try up to obsMaxReconnects times.
+			for attempt := 1; attempt <= obsMaxReconnects; attempt++ {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(obsReconnectDelay):
+				}
+
+				log.Printf("obs: reconnect attempt %d/%d…", attempt, obsMaxReconnects)
+				newClient, connErr := goobs.New(url, goobs.WithPassword(password))
+				if connErr == nil {
+					c.mu.Lock()
+					c.client = newClient
+					c.reconnectAttempts = 0
+					c.mu.Unlock()
+					log.Printf("obs: reconnected to OBS successfully")
+					break // Resume health-check loop.
+				}
+
+				log.Printf("obs: reconnect attempt %d/%d failed: %v", attempt, obsMaxReconnects, connErr)
+				c.mu.Lock()
+				c.reconnectAttempts = attempt
+				if attempt == obsMaxReconnects {
+					c.reconnectGaveUp = true
+				}
+				c.mu.Unlock()
+
+				if attempt == obsMaxReconnects {
+					log.Printf("obs: gave up reconnecting to OBS after %d attempts", obsMaxReconnects)
+					return
+				}
+			}
+		}
+	}
 }
 
 // GetURL returns the currently connected OBS WebSocket URL.
