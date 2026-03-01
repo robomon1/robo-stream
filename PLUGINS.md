@@ -163,32 +163,47 @@ curl -s -X PUT http://localhost:8080/api/controllers/obs/config \
 
 ### Execute a button action
 
+The action endpoint is `POST /api/action` and requires a registered session.
+First register a throwaway session, then use its ID:
+
 ```bash
-# Toggle ZoomOSC mute
-curl -s -X POST http://localhost:8080/api/actions/execute \
+# 1. Register a session (one-time, reuse the ID for multiple commands)
+SESSION=$(curl -s -X POST http://localhost:8080/api/client/register \
   -H "Content-Type: application/json" \
-  -d '{"controller": "zoomosc", "type": "toggle_audio"}'
+  -d '{"name":"curl-test"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['session_id'])")
+
+# 2. Toggle ZoomOSC mute
+curl -s -X POST http://localhost:8080/api/action \
+  -H "Content-Type: application/json" \
+  -H "X-Session-ID: $SESSION" \
+  -d '{"controller":"zoomosc","type":"toggle_audio"}'
 
 # Mute ZoomOSC microphone
-curl -s -X POST http://localhost:8080/api/actions/execute \
+curl -s -X POST http://localhost:8080/api/action \
   -H "Content-Type: application/json" \
-  -d '{"controller": "zoomosc", "type": "mute_audio"}'
+  -H "X-Session-ID: $SESSION" \
+  -d '{"controller":"zoomosc","type":"mute_audio"}'
 
 # Leave Zoom meeting
-curl -s -X POST http://localhost:8080/api/actions/execute \
+curl -s -X POST http://localhost:8080/api/action \
   -H "Content-Type: application/json" \
-  -d '{"controller": "zoomosc", "type": "leave_meeting"}'
+  -H "X-Session-ID: $SESSION" \
+  -d '{"controller":"zoomosc","type":"leave_meeting"}'
 
 # Toggle screen share
-curl -s -X POST http://localhost:8080/api/actions/execute \
+curl -s -X POST http://localhost:8080/api/action \
   -H "Content-Type: application/json" \
-  -d '{"controller": "zoomosc", "type": "toggle_share"}'
+  -H "X-Session-ID: $SESSION" \
+  -d '{"controller":"zoomosc","type":"toggle_share"}'
 
 # OBS: switch scene
-curl -s -X POST http://localhost:8080/api/actions/execute \
+curl -s -X POST http://localhost:8080/api/action \
   -H "Content-Type: application/json" \
-  -d '{"controller": "obs", "type": "switch_scene", "params": {"scene_name": "Main Scene"}}'
+  -H "X-Session-ID: $SESSION" \
+  -d '{"controller":"obs","type":"switch_scene","params":{"scene_name":"Main Scene"}}'
 ```
+
+> **Note:** The remote client app registers its own session automatically. The manual `curl` registration above is only needed for direct API testing.
 
 ### Restart a plugin
 
