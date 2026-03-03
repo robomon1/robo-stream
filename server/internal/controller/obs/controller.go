@@ -44,6 +44,12 @@ type Controller struct {
 	reconnectAttempts int
 	reconnectGaveUp   bool
 	cancelMonitor     context.CancelFunc
+
+	// lastStatus caches the most recent result of GetStatus() so that
+	// ComputeIndicator can compute simple boolean indicators without
+	// additional OBS round-trips.
+	lastStatusMu sync.RWMutex
+	lastStatus   map[string]interface{}
 }
 
 // New creates an OBS controller backed by the provided storage.
@@ -117,7 +123,7 @@ func (c *Controller) GetStatus() map[string]interface{} {
 		studioModeActive = smResp.StudioModeEnabled
 	}
 
-	return map[string]interface{}{
+	result := map[string]interface{}{
 		"connected":            true,
 		"streaming":            streamResp.OutputActive,
 		"recording":            recordResp.OutputActive,
@@ -127,6 +133,161 @@ func (c *Controller) GetStatus() map[string]interface{} {
 		"replay_buffer_active": replayBufferActive,
 		"studio_mode_active":   studioModeActive,
 	}
+
+	c.lastStatusMu.Lock()
+	c.lastStatus = result
+	c.lastStatusMu.Unlock()
+
+	return result
+}
+
+// ComputeIndicator returns the CSS indicator class for the given button action.
+// For simple boolean status fields it reads from the cached lastStatus (set by
+// the most recent GetStatus call) to avoid extra OBS round-trips. For
+// parameterised actions (source visibility, input mute, filters) it queries OBS
+// directly, since those states are button-specific and cannot be pre-fetched as
+// a single status blob.
+func (c *Controller) ComputeIndicator(action models.ButtonAction) string {
+	c.lastStatusMu.RLock()
+	status := c.lastStatus
+	c.lastStatusMu.RUnlock()
+
+	if status == nil {
+		return ""
+	}
+	connected, _ := status["connected"].(bool)
+	if !connected {
+		return ""
+	}
+
+	streaming, _ := status["streaming"].(bool)
+	recording, _ := status["recording"].(bool)
+	recordingPaused, _ := status["recording_paused"].(bool)
+	currentScene, _ := status["current_scene"].(string)
+	virtualCamActive, _ := status["virtual_cam_active"].(bool)
+	replayBufferActive, _ := status["replay_buffer_active"].(bool)
+	studioModeActive, _ := status["studio_mode_active"].(bool)
+
+	switch action.Type {
+	// ── Streaming ─────────────────────────────────────────────────────────
+	case "start_stream", "toggle_stream":
+		if streaming {
+			return "active"
+		}
+	case "stop_stream":
+		if !streaming {
+			return "active"
+		}
+
+	// ── Recording ─────────────────────────────────────────────────────────
+	case "start_record", "toggle_record":
+		if recording {
+			return "active"
+		}
+	case "stop_record":
+		if !recording {
+			return "active"
+		}
+	case "pause_record":
+		if recording && !recordingPaused {
+			return "active"
+		}
+	case "resume_record":
+		if recording && recordingPaused {
+			return "active"
+		}
+
+	// ── Virtual Camera ────────────────────────────────────────────────────
+	case "start_virtual_cam", "toggle_virtual_cam":
+		if virtualCamActive {
+			return "active"
+		}
+	case "stop_virtual_cam":
+		if !virtualCamActive {
+			return "active"
+		}
+
+	// ── Replay Buffer ─────────────────────────────────────────────────────
+	case "start_replay_buffer", "toggle_replay_buffer", "save_replay_buffer":
+		if replayBufferActive {
+			return "active"
+		}
+	case "stop_replay_buffer":
+		if !replayBufferActive {
+			return "active"
+		}
+
+	// ── Studio Mode ───────────────────────────────────────────────────────
+	case "toggle_studio_mode", "enable_studio_mode", "trigger_transition":
+		if studioModeActive {
+			return "active"
+		}
+	case "disable_studio_mode":
+		if !studioModeActive {
+			return "active"
+		}
+
+	// ── Scene switching ───────────────────────────────────────────────────
+	case "switch_scene":
+		sceneName, _ := action.Params["scene_name"].(string)
+		if sceneName != "" && currentScene == sceneName {
+			return "active"
+		}
+
+	// ── Source visibility ─────────────────────────────────────────────────
+	case "toggle_source_visibility", "show_source":
+		sceneName, _ := action.Params["scene_name"].(string)
+		sourceName, _ := action.Params["source_name"].(string)
+		if sceneName != "" && sourceName != "" {
+			if visible, err := c.GetSourceVisibility(sceneName, sourceName); err == nil && visible {
+				return "active"
+			}
+		}
+	case "hide_source":
+		sceneName, _ := action.Params["scene_name"].(string)
+		sourceName, _ := action.Params["source_name"].(string)
+		if sceneName != "" && sourceName != "" {
+			if visible, err := c.GetSourceVisibility(sceneName, sourceName); err == nil && !visible {
+				return "active"
+			}
+		}
+
+	// ── Input mute ────────────────────────────────────────────────────────
+	case "toggle_input_mute", "mute_input":
+		inputName, _ := action.Params["input_name"].(string)
+		if inputName != "" {
+			if muted, err := c.GetInputMute(inputName); err == nil && muted {
+				return "active"
+			}
+		}
+	case "unmute_input":
+		inputName, _ := action.Params["input_name"].(string)
+		if inputName != "" {
+			if muted, err := c.GetInputMute(inputName); err == nil && !muted {
+				return "active"
+			}
+		}
+
+	// ── Source filters ────────────────────────────────────────────────────
+	case "toggle_source_filter", "enable_source_filter":
+		sourceName, _ := action.Params["source_name"].(string)
+		filterName, _ := action.Params["filter_name"].(string)
+		if sourceName != "" && filterName != "" {
+			if enabled, err := c.GetSourceFilterEnabled(sourceName, filterName); err == nil && enabled {
+				return "active"
+			}
+		}
+	case "disable_source_filter":
+		sourceName, _ := action.Params["source_name"].(string)
+		filterName, _ := action.Params["filter_name"].(string)
+		if sourceName != "" && filterName != "" {
+			if enabled, err := c.GetSourceFilterEnabled(sourceName, filterName); err == nil && !enabled {
+				return "active"
+			}
+		}
+	}
+
+	return ""
 }
 
 func (c *Controller) GetConfigSchema() []controller.ConfigField {

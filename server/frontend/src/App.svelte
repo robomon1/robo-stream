@@ -171,7 +171,7 @@
       {:else if currentView === 'clients'}
         <Clients />
       {:else if currentView === 'controllers'}
-        <Controllers />
+        <Controllers {controllers} />
       {:else if currentView === 'obs'}
         <OBSSettings />
       {/if}

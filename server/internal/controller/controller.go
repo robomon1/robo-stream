@@ -16,6 +16,10 @@ type ActionTypeDefinition struct {
 	Name        string     `json:"name"`
 	Description string     `json:"description,omitempty"`
 	Params      []ParamDef `json:"params,omitempty"`
+
+	// Indicator rules — see sdk.ActionTypeDef for full documentation.
+	IndicatorField  string `json:"indicator_field,omitempty"`
+	IndicatorInvert bool   `json:"indicator_invert,omitempty"`
 }
 
 // ParamDef describes one parameter of an action type.
@@ -67,6 +71,13 @@ type Controller interface {
 	// Must always return without error; return an empty or disconnected map
 	// if the underlying service is not reachable.
 	GetStatus() map[string]interface{}
+
+	// ComputeIndicator returns the CSS indicator class for a single button
+	// action, using the controller's last-known state. Returns "active", "warn",
+	// or "" (no indicator). Must be fast — do not block on network I/O for
+	// the simple boolean cases; use cached state from the most recent
+	// GetStatus() call instead.
+	ComputeIndicator(action models.ButtonAction) string
 
 	// GetConfigSchema returns the fields the host should display in the
 	// controller's settings panel.

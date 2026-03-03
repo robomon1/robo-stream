@@ -23,11 +23,21 @@
     studioModeActive: false
   };
 
+  // ZoomOSC Status tracking for indicators
+  let zoomoscStatus = {
+    connected: false,
+    muted: false,
+    videoOn: false,
+    sharing: false,
+    handRaised: false
+  };
+
   let sourceVisibility = {}; // Track which sources are visible
   let sourceVisibilityVersion = 0;
 
-  // Force re-evaluation when obsStatus changes
+  // Force re-evaluation when obsStatus or zoomoscStatus changes
   $: obsStatusKey = `${obsStatus.streaming}-${obsStatus.recording}-${obsStatus.currentScene}`;
+  $: zoomoscStatusKey = `${zoomoscStatus.muted}-${zoomoscStatus.videoOn}-${zoomoscStatus.sharing}-${zoomoscStatus.handRaised}`;
 
   // Force re-evaluation when sourceVisibility changes
   sourceVisibilityVersion++;
@@ -49,15 +59,52 @@
     updateOBSStatus();
     const statusInterval = setInterval(updateOBSStatus, 2000);
 
+    // Start ZoomOSC status polling for indicators
+    updateZoomOSCStatus();
+    const zoomoscInterval = setInterval(updateZoomOSCStatus, 2000);
+
     // Start source visibility polling
     updateSourceVisibility();
     const visibilityInterval = setInterval(updateSourceVisibility, 2000);
-  
+
     return () => {
       clearInterval(statusInterval);
+      clearInterval(zoomoscInterval);
       clearInterval(visibilityInterval);
     };
   });
+
+  // Update ZoomOSC status for indicators.
+  //
+  // The plugin only knows the real state once ZoomOSC has sent at least one
+  // OSC feedback message (status.state_known === true). Until that point all
+  // boolean fields are zero-value defaults — NOT confirmed values — so we must
+  // NOT overwrite the local optimistic state that was set by button presses.
+  // When state_known IS true we trust the plugin's values and reconcile fully.
+  async function updateZoomOSCStatus() {
+    try {
+      const status = await window.go.main.App.GetControllerStatus('zoomosc');
+      if (status && !status.error) {
+        if (status.state_known) {
+          // ZoomOSC has confirmed real state — replace everything.
+          zoomoscStatus = {
+            connected:  status.connected   || false,
+            muted:      status.muted       || false,
+            videoOn:    status.video       || false,
+            sharing:    status.sharing     || false,
+            handRaised: status.hand_raised || false
+          };
+        } else {
+          // ZoomOSC hasn't sent state feedback yet (only pings).
+          // Only update the connected flag; leave optimistic state untouched
+          // so button-press indicators don't flicker away.
+          zoomoscStatus = { ...zoomoscStatus, connected: status.connected || false };
+        }
+      }
+    } catch (err) {
+      // Silently fail — ZoomOSC plugin may not be installed
+    }
+  }
 
   // Update OBS status for indicators
   async function updateOBSStatus() {
@@ -179,22 +226,93 @@
     // Start actions: show when state IS active
     if (actionType === 'start_stream') return obsStatus.streaming;
     if (actionType === 'start_record') return obsStatus.recording;
-    if (actionType === 'start_replay_buffer') return obsStatus.replayBufferActive;  // ← FIX
-    if (actionType === 'start_virtual_cam') return obsStatus.virtualCamActive;      // ← ADD
-    
+    if (actionType === 'start_replay_buffer') return obsStatus.replayBufferActive;
+    if (actionType === 'start_virtual_cam') return obsStatus.virtualCamActive;
+
     // Stop actions: show when state is NOT active
     if (actionType === 'stop_stream') return !obsStatus.streaming;
     if (actionType === 'stop_record') return !obsStatus.recording;
-    if (actionType === 'stop_replay_buffer') return !obsStatus.replayBufferActive;  // ← FIX
-    if (actionType === 'stop_virtual_cam') return !obsStatus.virtualCamActive;      // ← ADD
-    
+    if (actionType === 'stop_replay_buffer') return !obsStatus.replayBufferActive;
+    if (actionType === 'stop_virtual_cam') return !obsStatus.virtualCamActive;
+
     // Toggle actions: show when state IS active
     if (actionType === 'toggle_stream') return obsStatus.streaming;
     if (actionType === 'toggle_record') return obsStatus.recording;
-    if (actionType === 'toggle_replay_buffer') return obsStatus.replayBufferActive; // ← FIX
-    if (actionType === 'toggle_virtual_cam') return obsStatus.virtualCamActive;     // ← ADD
+    if (actionType === 'toggle_replay_buffer') return obsStatus.replayBufferActive;
+    if (actionType === 'toggle_virtual_cam') return obsStatus.virtualCamActive;
 
     return false;
+  }
+
+  // Action types that belong to ZoomOSC.
+  // Used as a fallback when button.action.controller is missing or empty
+  // (e.g. buttons created before the controller field was introduced).
+  const ZOOMOSC_ACTION_TYPES = new Set([
+    'toggle_audio', 'mute_audio',   'unmute_audio',
+    'toggle_video', 'start_video',  'stop_video',
+    'toggle_share', 'start_share',  'stop_share',
+    'raise_hand',   'lower_hand',   'toggle_hand',
+    'leave_meeting','end_meeting',
+    'spotlight_self', 'unspotlight_self',
+  ]);
+
+  /**
+   * Returns the indicator class for a button:
+   *   ''       — no indicator
+   *   'active' — white pulsing dot (state is "on" / active)
+   *
+   * Convention (mirrors OBS pattern):
+   *   toggle / start  → white when the relevant state IS active
+   *   stop            → white when the relevant state IS NOT active
+   *                     (i.e. the stop has taken effect)
+   */
+  function getButtonIndicatorClass(button) {
+    if (!button?.action || editMode) return '';
+
+    const actionType = button.action.type;
+    // Determine controller — fall back to action-type detection so indicators
+    // work even if button.action.controller was not explicitly saved.
+    const controller = button.action.controller ||
+      (ZOOMOSC_ACTION_TYPES.has(actionType) ? 'zoomosc' : 'obs');
+
+    // ── ZoomOSC indicators ───────────────────────────────────────────────────
+    if (controller === 'zoomosc') {
+      switch (actionType) {
+        // Audio — "on" means mic is live (unmuted) ──────────────────────────
+        case 'toggle_audio':
+        case 'unmute_audio':
+          return zoomoscStatus.muted ? '' : 'active';  // white = mic is live
+        case 'mute_audio':
+          return zoomoscStatus.muted ? 'active' : '';  // white = muted is in effect
+
+        // Video ──────────────────────────────────────────────────────────────
+        case 'toggle_video':
+        case 'start_video':
+          return zoomoscStatus.videoOn ? 'active' : '';
+        case 'stop_video':
+          return zoomoscStatus.videoOn ? '' : 'active';  // white = video is stopped
+
+        // Screen share ───────────────────────────────────────────────────────
+        case 'toggle_share':
+        case 'start_share':
+          return zoomoscStatus.sharing ? 'active' : '';
+        case 'stop_share':
+          return zoomoscStatus.sharing ? '' : 'active';  // white = share is stopped
+
+        // Hand raise ─────────────────────────────────────────────────────────
+        case 'raise_hand':
+        case 'toggle_hand':
+          return zoomoscStatus.handRaised ? 'active' : '';
+        case 'lower_hand':
+          return zoomoscStatus.handRaised ? '' : 'active';  // white = hand is down
+
+        default:
+          return '';
+      }
+    }
+
+    // ── OBS indicators (delegate to existing logic) ──────────────────────────
+    return shouldShowIndicator(button) ? 'active' : '';
   }
 
   async function loadData() {
@@ -477,28 +595,51 @@
 
   async function executeButtonAction(button) {
     if (!button || editMode) return;  // Don't execute in edit mode
-    
-    try {
-      // console.log('Executing button action:', button.name, button.action);
-      await window.go.main.App.ExecuteAction(button.action);
-      // console.log('Action executed successfully');
-      
-      // Update status immediately after toggle/scene actions
-      const actionType = button.action.type;
-      // console.log('actionType:', actionType);
-      if (isToggleAction(actionType) || actionType === 'switch_scene') {
-        setTimeout(updateOBSStatus, 500);
-      }
 
-      // Update source immediately after toggle/source actions
-      if (actionType === 'toggle_source_visibility' || 
-          actionType === 'show_source' || 
-          actionType === 'hide_source') {
-        setTimeout(updateSourceVisibility, 500);
+    try {
+      await window.go.main.App.ExecuteAction(button.action);
+
+      const actionType = button.action.type;
+      // Determine which controller owns this action (same logic as getButtonIndicatorClass)
+      const controller = button.action.controller ||
+        (ZOOMOSC_ACTION_TYPES.has(actionType) ? 'zoomosc' : 'obs');
+
+      if (controller === 'zoomosc') {
+        // Optimistic state update — flip/set local state immediately so the
+        // indicator responds at once, without waiting for OSC feedback from
+        // ZoomOSC (which may arrive late or not at all).
+        switch (actionType) {
+          case 'toggle_audio': zoomoscStatus = { ...zoomoscStatus, muted: !zoomoscStatus.muted }; break;
+          case 'mute_audio':   zoomoscStatus = { ...zoomoscStatus, muted: true  }; break;
+          case 'unmute_audio': zoomoscStatus = { ...zoomoscStatus, muted: false }; break;
+          case 'toggle_video': zoomoscStatus = { ...zoomoscStatus, videoOn: !zoomoscStatus.videoOn }; break;
+          case 'start_video':  zoomoscStatus = { ...zoomoscStatus, videoOn: true  }; break;
+          case 'stop_video':   zoomoscStatus = { ...zoomoscStatus, videoOn: false }; break;
+          case 'toggle_share': zoomoscStatus = { ...zoomoscStatus, sharing: !zoomoscStatus.sharing }; break;
+          case 'start_share':  zoomoscStatus = { ...zoomoscStatus, sharing: true  }; break;
+          case 'stop_share':   zoomoscStatus = { ...zoomoscStatus, sharing: false }; break;
+          case 'raise_hand':   zoomoscStatus = { ...zoomoscStatus, handRaised: true  }; break;
+          case 'lower_hand':   zoomoscStatus = { ...zoomoscStatus, handRaised: false }; break;
+          case 'toggle_hand':  zoomoscStatus = { ...zoomoscStatus, handRaised: !zoomoscStatus.handRaised }; break;
+        }
+        // Also poll after a delay — if ZoomOSC sends feedback the real state
+        // will reconcile; if not, the optimistic value stands.
+        setTimeout(updateZoomOSCStatus, 1000);
+      } else {
+        // Update OBS status immediately after toggle/scene actions
+        if (isToggleAction(actionType) || actionType === 'switch_scene') {
+          setTimeout(updateOBSStatus, 500);
+        }
+
+        // Update source visibility immediately after source actions
+        if (actionType === 'toggle_source_visibility' ||
+            actionType === 'show_source' ||
+            actionType === 'hide_source') {
+          setTimeout(updateSourceVisibility, 500);
+        }
       }
     } catch (err) {
       console.error('Failed to execute action:', err);
-      // Show error to user
       alert('Error executing action: ' + err);
     }
   }
@@ -619,10 +760,11 @@
                     on:dragover={handleDragOver}
                   >
                     {#if button}
-                      <div 
-                        class="button-display" 
+                      <div
+                        class="button-display"
                         class:clickable={!editMode}
-                        class:active={(obsStatusKey || sourceVisibilityVersion > 0) && shouldShowIndicator(button)}
+                        class:active={(obsStatusKey || zoomoscStatusKey || sourceVisibilityVersion > 0) && getButtonIndicatorClass(button) === 'active'}
+                        class:active-warn={(obsStatusKey || zoomoscStatusKey || sourceVisibilityVersion > 0) && getButtonIndicatorClass(button) === 'warn'}
                         style="background: {button.color}"
                         on:click={() => executeButtonAction(button)}
                       >
@@ -1162,12 +1304,12 @@
     color: #94a3b8;
   }
 
-  /* Indicator - white dot with black border */
+  /* Active indicator — white dot (state is "on") */
   .button-display.active::after {
     content: '';
     position: absolute;
     top: 8px;
-    left: 8px;  /* ← CHANGED FROM right TO left */
+    left: 8px;
     width: 20px;
     height: 20px;
     background: white;
@@ -1178,14 +1320,29 @@
     z-index: 10;
   }
 
+  /* Warning indicator — red dot (state is "bad", e.g. mic muted) */
+  .button-display.active-warn::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 20px;
+    height: 20px;
+    background: #ef4444;
+    border: 4px solid #7f1d1d;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.7);
+    animation: pulse-warn 1.2s infinite;
+    z-index: 10;
+  }
+
   @keyframes pulse {
-    0%, 100% { 
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% { 
-      opacity: 0.8;
-      transform: scale(1.1);
-    }
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.8; transform: scale(1.1); }
+  }
+
+  @keyframes pulse-warn {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.7; transform: scale(1.15); }
   }
 </style>

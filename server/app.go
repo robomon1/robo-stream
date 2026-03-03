@@ -351,6 +351,30 @@ func (a *App) ExecuteAction(action models.ButtonAction) error {
 	return a.registry.ExecuteAction(action)
 }
 
+// ControllerActionGroup groups a controller's supported action types for the button editor.
+type ControllerActionGroup struct {
+	ControllerID   string                            `json:"controller_id"`
+	ControllerName string                            `json:"controller_name"`
+	Connected      bool                              `json:"connected"`
+	Actions        []controller.ActionTypeDefinition `json:"actions"`
+}
+
+// GetAllActionTypes returns supported action types from every registered controller,
+// grouped by controller. Used by the button editor to populate the action picker.
+func (a *App) GetAllActionTypes() []ControllerActionGroup {
+	controllers := a.registry.List()
+	result := make([]ControllerActionGroup, 0, len(controllers))
+	for _, c := range controllers {
+		result = append(result, ControllerActionGroup{
+			ControllerID:   c.ID(),
+			ControllerName: c.Name(),
+			Connected:      c.IsConnected(),
+			Actions:        c.SupportedActionTypes(),
+		})
+	}
+	return result
+}
+
 // ----- OBS-specific query bindings -----
 // These are kept as named methods because the Wails frontend has OBS-specific
 // settings panels that query scenes, inputs, and source states.

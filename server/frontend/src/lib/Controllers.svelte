@@ -1,8 +1,11 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
 
-  let controllers = [];
-  let controllerOrder = []; // stable first-seen insertion order of IDs
+  // controllers is passed in from App.svelte (it already polls GetControllers
+  // every 5 s). We must NOT call GetControllers() ourselves — doing so doubled
+  // the number of plugin HTTP calls and caused the UI to lock up.
+  export let controllers = [];
+
   let statuses = {};       // id → status map
   let schemas = {};        // id → config schema array
   let configs = {};        // id → current config
@@ -12,48 +15,52 @@
   let errorMsg = {};       // id → error string
   let successMsg = {};     // id → success string
   let interval;
+  let refreshing = false;  // guard against concurrent refresh() calls
 
   onMount(async () => {
     await refresh();
-    interval = setInterval(refresh, 5000);
+    interval = setInterval(refresh, 3000);
   });
 
   onDestroy(() => clearInterval(interval));
 
   async function refresh() {
+    // Skip if a previous refresh is still in-flight — stacking slow plugin
+    // HTTP calls was the root cause of the Controllers-page freeze.
+    if (refreshing) return;
+    refreshing = true;
     try {
-      const fresh = await window.go.main.App.GetControllers();
-
-      // Maintain a stable insertion-order list of IDs so the list never
-      // reorders on the screen between polls (even if the backend returns
-      // items in a different order due to map-iteration randomness).
-      const freshMap = new Map(fresh.map(c => [c.id, c]));
-      for (const c of fresh) {
-        if (!controllerOrder.includes(c.id)) {
-          controllerOrder.push(c.id);
-        }
-      }
-      controllers = controllerOrder
-        .filter(id => freshMap.has(id))
-        .map(id => freshMap.get(id));
-
+      // Poll statuses for currently-known controllers only.
       for (const c of controllers) {
         statuses[c.id] = await window.go.main.App.GetControllerStatus(c.id);
       }
       statuses = statuses; // trigger reactivity
     } catch (err) {
-      console.error('Controllers refresh failed:', err);
+      console.error('Controllers status refresh failed:', err);
+    } finally {
+      refreshing = false;
     }
   }
 
   async function toggleExpand(id) {
     expanded[id] = !expanded[id];
     if (expanded[id] && !schemas[id]) {
-      // Load schema + config on first open
+      // Load schema + config on first open.
+      // IMPORTANT: fetch both concurrently with Promise.all so that schemas[id]
+      // and editConfigs[id] are always set together in one synchronous block.
+      // If we used two sequential awaits, a Svelte re-render triggered between
+      // them (e.g. by refresh() calling `statuses = statuses`) would see
+      // schemas[id] defined but editConfigs[id] still undefined, causing a
+      // TypeError inside the bind:value expression that corrupts Svelte's
+      // scheduler and permanently freezes the UI.
       try {
-        schemas[id] = await window.go.main.App.GetControllerConfigSchema(id);
-        configs[id] = await window.go.main.App.GetControllerConfig(id);
-        editConfigs[id] = { ...configs[id] };
+        const [schema, cfg] = await Promise.all([
+          window.go.main.App.GetControllerConfigSchema(id),
+          window.go.main.App.GetControllerConfig(id),
+        ]);
+        schemas[id] = schema;
+        configs[id] = cfg;
+        editConfigs[id] = { ...(cfg || {}) };
       } catch (err) {
         errorMsg[id] = 'Failed to load config: ' + err;
       }
@@ -185,7 +192,7 @@
             <div class="msg success">{successMsg[ctrl.id]}</div>
           {/if}
 
-          {#if schemas[ctrl.id]}
+          {#if schemas[ctrl.id] && editConfigs[ctrl.id]}
             {#each schemas[ctrl.id] as field}
               <div class="form-group">
                 <label for="{ctrl.id}-{field.key}">{field.label}</label>

@@ -381,12 +381,19 @@ func (m *Manager) loadConfig(id string) map[string]interface{} {
 
 // ==================== package-level helpers ====================
 
-// findExecutable scans dir for an executable file and returns its path.
+// findExecutable scans dir for executable files and returns the path of the
+// most recently modified one. If multiple executables are present (e.g. an old
+// binary left alongside a newly installed one), the newest wins. This avoids
+// silent failures where a stale binary is picked over a freshly copied one.
 func findExecutable(dir string) (string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", err
 	}
+
+	var bestPath string
+	var bestTime int64 // Unix nanos of the newest executable found
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -394,21 +401,60 @@ func findExecutable(dir string) (string, error) {
 		name := entry.Name()
 		fullPath := filepath.Join(dir, name)
 
+		isExec := false
 		if runtime.GOOS == "windows" {
-			if strings.HasSuffix(strings.ToLower(name), ".exe") {
-				return fullPath, nil
-			}
+			isExec = strings.HasSuffix(strings.ToLower(name), ".exe")
 		} else {
 			info, err := entry.Info()
 			if err != nil {
 				continue
 			}
-			if info.Mode()&0111 != 0 {
-				return fullPath, nil
-			}
+			isExec = info.Mode()&0111 != 0
+		}
+		if !isExec {
+			continue
+		}
+
+		// Pick the newest executable.
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		modNano := info.ModTime().UnixNano()
+		if bestPath == "" || modNano > bestTime {
+			bestPath = fullPath
+			bestTime = modNano
 		}
 	}
-	return "", fmt.Errorf("no executable found in %s", dir)
+
+	if bestPath == "" {
+		return "", fmt.Errorf("no executable found in %s", dir)
+	}
+
+	// Warn if there are multiple executables — one may be stale.
+	execCount := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if runtime.GOOS == "windows" {
+			if strings.HasSuffix(strings.ToLower(entry.Name()), ".exe") {
+				execCount++
+			}
+		} else if info.Mode()&0111 != 0 {
+			execCount++
+		}
+	}
+	if execCount > 1 {
+		log.Printf("plugin: WARNING: %d executables found in %s — using newest: %s. Remove stale binaries to suppress this warning.",
+			execCount, dir, filepath.Base(bestPath))
+	}
+
+	return bestPath, nil
 }
 
 // probePluginID starts the binary with --probe flag and reads the plugin ID.

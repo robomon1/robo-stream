@@ -30,6 +30,10 @@ export function ExecuteAction(arg1) {
   return window['go']['main']['App']['ExecuteAction'](arg1);
 }
 
+export function GetAllActionTypes() {
+  return window['go']['main']['App']['GetAllActionTypes']();
+}
+
 export function GetButton(arg1) {
   return window['go']['main']['App']['GetButton'](arg1);
 }

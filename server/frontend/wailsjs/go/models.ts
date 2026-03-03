@@ -1,5 +1,67 @@
 export namespace controller {
 	
+	export class ParamDef {
+	    key: string;
+	    label: string;
+	    type: string;
+	    options?: string[];
+	    required?: boolean;
+	    default?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new ParamDef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.type = source["type"];
+	        this.options = source["options"];
+	        this.required = source["required"];
+	        this.default = source["default"];
+	    }
+	}
+	export class ActionTypeDefinition {
+	    type: string;
+	    name: string;
+	    description?: string;
+	    params?: ParamDef[];
+	    indicator_field?: string;
+	    indicator_invert?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ActionTypeDefinition(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.params = this.convertValues(source["params"], ParamDef);
+	        this.indicator_field = source["indicator_field"];
+	        this.indicator_invert = source["indicator_invert"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ConfigField {
 	    key: string;
 	    label: string;
@@ -21,6 +83,47 @@ export namespace controller {
 	        this.default = source["default"];
 	        this.help = source["help"];
 	    }
+	}
+
+}
+
+export namespace main {
+	
+	export class ControllerActionGroup {
+	    controller_id: string;
+	    controller_name: string;
+	    connected: boolean;
+	    actions: controller.ActionTypeDefinition[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ControllerActionGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.controller_id = source["controller_id"];
+	        this.controller_name = source["controller_name"];
+	        this.connected = source["connected"];
+	        this.actions = this.convertValues(source["actions"], controller.ActionTypeDefinition);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

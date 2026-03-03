@@ -27,6 +27,19 @@ type ActionTypeDef struct {
 	Name        string     `json:"name"`
 	Description string     `json:"description,omitempty"`
 	Params      []ParamDef `json:"params,omitempty"`
+
+	// Indicator rules — used by the host to compute per-button indicator states
+	// without any plugin-specific client-side code.
+	//
+	// IndicatorField is the key in the plugin's Status().Details map whose
+	// boolean value drives this button's indicator. If empty, the button has
+	// no indicator.
+	//
+	// IndicatorInvert, when true, shows the indicator when the field is FALSE
+	// (e.g. "stop_video" is "active" when video is OFF → IndicatorField="video",
+	// IndicatorInvert=true).
+	IndicatorField  string `json:"indicator_field,omitempty"`
+	IndicatorInvert bool   `json:"indicator_invert,omitempty"`
 }
 
 // ParamDef describes one parameter of an action.

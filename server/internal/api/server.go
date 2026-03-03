@@ -62,6 +62,10 @@ func (s *Server) setupRoutes() {
 	// Action execution
 	s.router.HandleFunc("/api/action", s.executeAction).Methods("POST", "OPTIONS")
 
+	// Session button indicators — plugin-agnostic indicator states for all
+	// buttons in the current session's active configuration.
+	s.router.HandleFunc("/api/session/button-indicators", s.getButtonIndicators).Methods("GET", "OPTIONS")
+
 	// Generic controller endpoints
 	s.router.HandleFunc("/api/controllers", s.listControllers).Methods("GET", "OPTIONS")
 	s.router.HandleFunc("/api/controllers/{id}/status", s.getControllerStatus).Methods("GET", "OPTIONS")
@@ -256,6 +260,72 @@ func (s *Server) executeAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{"success": true})
+}
+
+// getButtonIndicators returns a map of buttonID → indicator class ("active", "warn",
+// or "") for every button in the calling session's active configuration.
+// This lets clients display indicators without any plugin-specific code: they
+// simply apply the returned class to the matching button element.
+//
+// Algorithm:
+//  1. Look up the session and resolve its active configuration.
+//  2. Pre-warm the status cache for every distinct controller used in the config
+//     by calling GetStatus() once per controller.  This ensures ComputeIndicator
+//     reads a fresh status snapshot rather than stale (or nil) cache data.
+//  3. Call ComputeIndicator(action) for each button and collect the results.
+func (s *Server) getButtonIndicators(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.Header.Get("X-Session-ID")
+	if sessionID == "" {
+		s.respondError(w, http.StatusBadRequest, "missing X-Session-ID header")
+		return
+	}
+
+	session, err := s.sessionManager.Get(sessionID)
+	if err != nil {
+		s.respondError(w, http.StatusNotFound, "session not found")
+		return
+	}
+	s.sessionManager.UpdateActivity(sessionID)
+
+	resolved, err := s.configManager.Resolve(session.ConfigID)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Collect all distinct controller IDs used by buttons in this config.
+	seen := make(map[string]bool)
+	for _, btn := range resolved.Buttons {
+		ctrlID := btn.Action.Controller
+		if ctrlID == "" {
+			ctrlID = "obs" // default for legacy buttons
+		}
+		seen[ctrlID] = true
+	}
+
+	// Pre-warm each controller's internal status cache with a single GetStatus call.
+	// ComputeIndicator then reads from the cache — no extra round-trips per button.
+	for ctrlID := range seen {
+		if ctrl, ok := s.registry.Get(ctrlID); ok {
+			ctrl.GetStatus()
+		}
+	}
+
+	// Compute indicator for every button.
+	indicators := make(map[string]string, len(resolved.Buttons))
+	for _, btn := range resolved.Buttons {
+		ctrlID := btn.Action.Controller
+		if ctrlID == "" {
+			ctrlID = "obs"
+		}
+		if ctrl, ok := s.registry.Get(ctrlID); ok {
+			indicators[btn.ID] = ctrl.ComputeIndicator(btn.Action)
+		} else {
+			indicators[btn.ID] = ""
+		}
+	}
+
+	s.respondJSON(w, http.StatusOK, indicators)
 }
 
 // ==================== CONTROLLER ENDPOINTS ====================

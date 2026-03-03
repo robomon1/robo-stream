@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,10 +33,12 @@ type pluginStatus struct {
 }
 
 type pluginActionDef struct {
-	Type        string           `json:"type"`
-	Name        string           `json:"name"`
-	Description string           `json:"description,omitempty"`
-	Params      []pluginParamDef `json:"params,omitempty"`
+	Type            string           `json:"type"`
+	Name            string           `json:"name"`
+	Description     string           `json:"description,omitempty"`
+	Params          []pluginParamDef `json:"params,omitempty"`
+	IndicatorField  string           `json:"indicator_field,omitempty"`
+	IndicatorInvert bool             `json:"indicator_invert,omitempty"`
 }
 
 type pluginParamDef struct {
@@ -78,9 +81,30 @@ type HostController struct {
 	pluginDir  string
 	storage    *storage.Storage
 	httpClient *http.Client
+	// statusClient uses a shorter timeout for frequent health-check calls.
+	statusClient *http.Client
 	// Cached metadata fetched from the plugin on creation
 	info pluginInfo
+	// Cached connected state — updated by GetStatus(); read by IsConnected()
+	// so that GetControllers() never has to make a blocking HTTP call.
+	connectedMu sync.RWMutex
+	connected   bool
+
+	// statusCacheMu guards statusCache and statusCachedAt.
+	statusCacheMu  sync.RWMutex
+	statusCache    map[string]interface{}
+	statusCachedAt time.Time
+
+	// actionDefsMu guards actionDefsCache and actionDefsLoadedAt.
+	// Action defs are fetched from the plugin's /actions endpoint and cached
+	// so that ComputeIndicator doesn't need to make an HTTP round-trip per button.
+	actionDefsMu      sync.RWMutex
+	actionDefsCache   map[string]pluginActionDef // keyed by action type string
+	actionDefsLoadedAt time.Time
 }
+
+// actionDefsCacheTTL is how long action definitions are cached before re-fetching.
+const actionDefsCacheTTL = 60 * time.Second
 
 func newHostController(id string, port int, pluginDir string, st *storage.Storage) *HostController {
 	h := &HostController{
@@ -90,6 +114,11 @@ func newHostController(id string, port int, pluginDir string, st *storage.Storag
 		storage:   st,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
+		},
+		// Status/health checks use a tighter timeout so frequent polls fail fast
+		// rather than blocking for 10 s when the plugin is unresponsive.
+		statusClient: &http.Client{
+			Timeout: 3 * time.Second,
 		},
 	}
 	// Best-effort: fetch info on creation (not required for operation)
@@ -117,17 +146,33 @@ func (h *HostController) Shutdown() error {
 	return nil
 }
 
+// IsConnected returns the last-known connected state without making any HTTP
+// calls. The cached value is refreshed by GetStatus(), which the polling loop
+// calls every few seconds. This keeps GetControllers() instant.
 func (h *HostController) IsConnected() bool {
-	status := h.GetStatus()
-	connected, _ := status["connected"].(bool)
-	return connected
+	h.connectedMu.RLock()
+	defer h.connectedMu.RUnlock()
+	return h.connected
 }
 
 func (h *HostController) GetStatus() map[string]interface{} {
 	var status pluginStatus
-	if err := h.get("/status", &status); err != nil {
-		return map[string]interface{}{"connected": false, "error": err.Error()}
+	// Use the short-timeout statusClient so stale/crashed plugins fail fast.
+	if err := h.getWith(h.statusClient, "/status", &status); err != nil {
+		h.connectedMu.Lock()
+		h.connected = false
+		h.connectedMu.Unlock()
+		disconnected := map[string]interface{}{"connected": false, "error": err.Error()}
+		h.statusCacheMu.Lock()
+		h.statusCache = disconnected
+		h.statusCachedAt = time.Now()
+		h.statusCacheMu.Unlock()
+		return disconnected
 	}
+	h.connectedMu.Lock()
+	h.connected = status.Connected
+	h.connectedMu.Unlock()
+
 	result := map[string]interface{}{"connected": status.Connected}
 	if status.Error != "" {
 		result["error"] = status.Error
@@ -135,7 +180,116 @@ func (h *HostController) GetStatus() map[string]interface{} {
 	for k, v := range status.Details {
 		result[k] = v
 	}
+
+	// Cache the result for use by ComputeIndicator.
+	h.statusCacheMu.Lock()
+	h.statusCache = result
+	h.statusCachedAt = time.Now()
+	h.statusCacheMu.Unlock()
+
 	return result
+}
+
+// cachedStatus returns the most recent status map without making any HTTP calls.
+func (h *HostController) cachedStatus() map[string]interface{} {
+	h.statusCacheMu.RLock()
+	defer h.statusCacheMu.RUnlock()
+	if h.statusCache != nil {
+		return h.statusCache
+	}
+	return map[string]interface{}{}
+}
+
+// getActionDefs returns the plugin's action type definitions, using a 60-second
+// in-memory cache to avoid hitting the plugin's /actions endpoint on every
+// ComputeIndicator call.
+func (h *HostController) getActionDefs() map[string]pluginActionDef {
+	h.actionDefsMu.RLock()
+	if h.actionDefsCache != nil && time.Since(h.actionDefsLoadedAt) < actionDefsCacheTTL {
+		defs := h.actionDefsCache
+		h.actionDefsMu.RUnlock()
+		return defs
+	}
+	h.actionDefsMu.RUnlock()
+
+	// Fetch fresh definitions from the plugin.
+	var rawDefs []pluginActionDef
+	if err := h.get("/actions", &rawDefs); err != nil {
+		// Return stale cache if available.
+		h.actionDefsMu.RLock()
+		defs := h.actionDefsCache
+		h.actionDefsMu.RUnlock()
+		return defs
+	}
+
+	defs := make(map[string]pluginActionDef, len(rawDefs))
+	for _, d := range rawDefs {
+		defs[d.Type] = d
+	}
+
+	h.actionDefsMu.Lock()
+	h.actionDefsCache = defs
+	h.actionDefsLoadedAt = time.Now()
+	h.actionDefsMu.Unlock()
+
+	return defs
+}
+
+// ComputeIndicator returns the CSS class for the given button action based on
+// the plugin's last-known status. Uses the IndicatorField / IndicatorInvert
+// rules declared in the plugin's SupportedActions definitions.
+func (h *HostController) ComputeIndicator(action models.ButtonAction) string {
+	defs := h.getActionDefs()
+	if defs == nil {
+		return ""
+	}
+	def, ok := defs[action.Type]
+	if !ok || def.IndicatorField == "" {
+		return ""
+	}
+
+	status := h.cachedStatus()
+
+	// CRITICAL: guard against Go zero-value booleans when the plugin has not
+	// yet received real state feedback from the external service. ZoomOSC (and
+	// similar plugins) only emit state-change events — they do NOT broadcast
+	// current state on connect. If the server starts mid-meeting, fields that
+	// haven't changed remain at their zero value (false) even though they may
+	// actually be true.
+	//
+	// Strategy: prefer a field-specific "{field}_known" flag if the plugin
+	// provides one (e.g. "video_known" for the "video" IndicatorField). Fall
+	// back to the global "state_known" flag for plugins that only track
+	// overall state. Return "" for any field that hasn't been confirmed yet.
+	fieldKnownKey := def.IndicatorField + "_known"
+	if fieldKnownRaw, exists := status[fieldKnownKey]; exists {
+		if fieldKnown, isBool := fieldKnownRaw.(bool); isBool && !fieldKnown {
+			return ""
+		}
+	} else if stateKnownRaw, exists := status["state_known"]; exists {
+		if stateKnown, isBool := stateKnownRaw.(bool); isBool && !stateKnown {
+			return ""
+		}
+	}
+
+	val, exists := status[def.IndicatorField]
+	if !exists {
+		return ""
+	}
+
+	boolVal, ok := val.(bool)
+	if !ok {
+		return ""
+	}
+
+	isActive := boolVal
+	if def.IndicatorInvert {
+		isActive = !isActive
+	}
+	if isActive {
+		return "active"
+	}
+	return ""
 }
 
 func (h *HostController) SupportedActionTypes() []controller.ActionTypeDefinition {
@@ -157,10 +311,12 @@ func (h *HostController) SupportedActionTypes() []controller.ActionTypeDefinitio
 			}
 		}
 		result[i] = controller.ActionTypeDefinition{
-			Type:        d.Type,
-			Name:        d.Name,
-			Description: d.Description,
-			Params:      params,
+			Type:            d.Type,
+			Name:            d.Name,
+			Description:     d.Description,
+			Params:          params,
+			IndicatorField:  d.IndicatorField,
+			IndicatorInvert: d.IndicatorInvert,
 		}
 	}
 	return result
@@ -258,7 +414,11 @@ func (h *HostController) persistConfig(cfg map[string]interface{}) error {
 }
 
 func (h *HostController) get(path string, out interface{}) error {
-	resp, err := h.httpClient.Get(h.baseURL() + path)
+	return h.getWith(h.httpClient, path, out)
+}
+
+func (h *HostController) getWith(client *http.Client, path string, out interface{}) error {
+	resp, err := client.Get(h.baseURL() + path)
 	if err != nil {
 		return fmt.Errorf("plugin %s GET %s: %w", h.id, path, err)
 	}
