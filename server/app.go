@@ -12,73 +12,88 @@ import (
 	"time"
 
 	"github.com/robomon1/robo-stream/server/internal/api"
+	"github.com/robomon1/robo-stream/server/internal/controller"
+	obsctrl "github.com/robomon1/robo-stream/server/internal/controller/obs"
 	"github.com/robomon1/robo-stream/server/internal/manager"
 	"github.com/robomon1/robo-stream/server/internal/models"
+	"github.com/robomon1/robo-stream/server/internal/plugin"
 	"github.com/robomon1/robo-stream/server/internal/storage"
 )
 
-// App struct
+// App is the root application struct exposed to the Wails runtime.
 type App struct {
-	ctx                  context.Context
-	storage              *storage.Storage
-	buttonManager        *manager.ButtonManager
-	configManager        *manager.ConfigManager
-	sessionManager       *manager.SessionManager
-	obsManager           *manager.OBSManager
-	apiServer            *api.Server
-	lastOBSConnected     bool
-	obsStatusInitialized bool
+	ctx            context.Context
+	storage        *storage.Storage
+	buttonManager  *manager.ButtonManager
+	configManager  *manager.ConfigManager
+	sessionManager *manager.SessionManager
+	registry       *controller.Registry
+	obsController  *obsctrl.Controller
+	pluginManager  *plugin.Manager
+	apiServer      *api.Server
 }
 
-// NewApp creates a new App application struct
+// NewApp creates a new App application struct.
 func NewApp() *App {
 	return &App{}
 }
 
-// startup is called when the app starts
+// startup is called when the Wails application starts.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	// Get data directory
 	dataDir, err := a.getDataDir()
 	if err != nil {
 		log.Fatal("Failed to get data directory:", err)
 	}
 
-	// Initialize storage
 	a.storage, err = storage.New(dataDir)
 	if err != nil {
 		log.Fatal("Failed to initialize storage:", err)
 	}
 
-	// Initialize managers
+	// Core managers (unchanged)
 	a.buttonManager = manager.NewButtonManager(a.storage)
 	a.configManager = manager.NewConfigManager(a.storage, a.buttonManager)
 	a.sessionManager = manager.NewSessionManager(a.storage)
-	a.obsManager = manager.NewOBSManager()
 
-	// Initialize with some default data if needed
+	// Controller registry with built-in OBS controller
+	a.registry = controller.NewRegistry()
+	a.obsController = obsctrl.New(a.storage)
+	if err := a.registry.Register(a.obsController); err != nil {
+		log.Fatal("Failed to register OBS controller:", err)
+	}
+
+	// Plugin manager discovers and starts external controller plugins
+	pluginsDir := filepath.Join(dataDir, "plugins")
+	a.pluginManager = plugin.New(pluginsDir, a.storage, a.registry)
+
 	a.initializeDefaults()
 
-	// Start session cleanup routine
 	go a.sessionCleanupLoop()
 
-	// Auto-connect to OBS on startup
+	// Discover and start any installed plugins
+	go func() {
+		if err := a.pluginManager.DiscoverAndStart(); err != nil {
+			log.Printf("⚠️  Plugin discovery error: %v", err)
+		}
+	}()
+
+	// Auto-connect OBS with saved credentials
 	go func() {
 		log.Println("🔌 Attempting to auto-connect to OBS...")
-		savedConfig := a.GetSavedOBSConfig()
-
-		// Try with saved config first
-		err := a.obsManager.Connect(savedConfig.URL, savedConfig.Password)
-		if err != nil {
+		cfg := a.obsController.GetCurrentConfig()
+		url, _ := cfg["url"].(string)
+		password, _ := cfg["password"].(string)
+		if err := a.obsController.Connect(url, password); err != nil {
 			log.Printf("⚠️  Auto-connect to OBS failed: %v (this is normal if OBS isn't running)", err)
 		} else {
 			log.Println("✅ Auto-connected to OBS successfully!")
 		}
 	}()
 
-	// Start API server for clients
-	a.apiServer = api.NewServer(a.configManager, a.sessionManager, a.obsManager)
+	// Start HTTP API server
+	a.apiServer = api.NewServer(a.configManager, a.sessionManager, a.registry, a.obsController, a.pluginManager)
 	go func() {
 		log.Println("Starting API server on 0.0.0.0:8080")
 		if err := a.apiServer.Start("0.0.0.0:8080"); err != nil {
@@ -89,46 +104,36 @@ func (a *App) startup(ctx context.Context) {
 	log.Println("Robo-Stream Server started successfully")
 }
 
-// sessionCleanupLoop periodically cleans up inactive sessions
 func (a *App) sessionCleanupLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	// Initial cleanup on startup
 	inactiveTimeout := 30 * time.Minute
-	if err := a.sessionManager.CleanupInactive(inactiveTimeout); err != nil {
-		log.Printf("⚠️  Failed to cleanup inactive sessions: %v", err)
-	} else {
-		activeSessions := len(a.sessionManager.List())
-		log.Printf("🧹 Session cleanup complete (%d active sessions)", activeSessions)
-	}
-
-	// Periodic cleanup
-	for range ticker.C {
+	cleanup := func() {
 		if err := a.sessionManager.CleanupInactive(inactiveTimeout); err != nil {
 			log.Printf("⚠️  Failed to cleanup inactive sessions: %v", err)
 		} else {
-			activeSessions := len(a.sessionManager.List())
-			log.Printf("🧹 Session cleanup complete (%d active sessions)", activeSessions)
+			log.Printf("🧹 Session cleanup complete (%d active sessions)", len(a.sessionManager.List()))
 		}
+	}
+	cleanup()
+	for range ticker.C {
+		cleanup()
 	}
 }
 
-// shutdown is called when the app is closing
+// shutdown is called when the Wails application closes.
 func (a *App) shutdown(ctx context.Context) {
-	if a.obsManager != nil {
-		a.obsManager.Disconnect()
-	}
+	a.registry.ShutdownAll()
+	a.pluginManager.Shutdown()
 	log.Println("Robo-Stream Server shutdown complete")
 }
 
-// getDataDir returns the appropriate data directory for the platform
 func (a *App) getDataDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-
 	var dataDir string
 	switch {
 	case filepath.Dir("/") == "/": // Unix-like
@@ -136,86 +141,48 @@ func (a *App) getDataDir() (string, error) {
 	default: // Windows
 		dataDir = filepath.Join(homeDir, "AppData", "Roaming", "RoboStreamServer")
 	}
-
 	return dataDir, nil
 }
 
-// initializeDefaults creates default configuration if none exist
+// initializeDefaults creates the default OBS configuration on first run.
 func (a *App) initializeDefaults() {
-	// Check if we have any configurations
-	configs := a.configManager.List()
-	if len(configs) > 0 {
-		return // Already initialized
+	if len(a.configManager.List()) > 0 {
+		return
 	}
-
 	log.Println("Initializing default configuration...")
 
-	// Create some default buttons
-	defaultButtons := []struct {
-		name        string
-		description string
-		icon        string
-		color       string
-		actionType  string
-		params      map[string]interface{}
-	}{
-		{"Go Live", "Start streaming", "video", "#e74c3c", "start_stream", nil},
-		{"Stop Stream", "Stop streaming", "stop-circle", "#95a5a6", "stop_stream", nil},
-		{"Start Record", "Start recording", "circle", "#e74c3c", "start_record", nil},
-		{"Stop Record", "Stop recording", "stop-circle", "#95a5a6", "stop_record", nil},
-		{"Mute Mic", "Mute microphone", "mic-off", "#e67e22", "toggle_input_mute", map[string]interface{}{"input_name": "Mic/Aux"}},
-		{"Scene", "Switch to main scene", "layout", "#3498db", "switch_scene", map[string]interface{}{"scene_name": "Scene"}},
-	}
-
-	buttonIDs := make([]string, 0, len(defaultButtons))
-	for _, btn := range defaultButtons {
-		button := &models.Button{
-			Name:        btn.name,
-			Description: btn.description,
-			Icon:        btn.icon,
-			Color:       btn.color,
-			Action: models.ButtonAction{
-				Type:   btn.actionType,
-				Params: btn.params,
-			},
-		}
-		if err := a.buttonManager.Create(button); err != nil {
-			log.Printf("Failed to create button %s: %v", btn.name, err)
+	buttonIDs := make([]string, 0)
+	for _, btn := range a.obsController.GetDefaultButtons() {
+		if err := a.buttonManager.Create(btn); err != nil {
+			log.Printf("Failed to create default button %s: %v", btn.Name, err)
 			continue
 		}
-		buttonIDs = append(buttonIDs, button.ID)
+		buttonIDs = append(buttonIDs, btn.ID)
 	}
 
-	// Create default configuration
 	defaultConfig := &models.Configuration{
 		Name:        "Default",
 		Description: "Default configuration",
-		Grid: models.GridConfig{
-			Rows: 3,
-			Cols: 4,
-		},
-		Buttons:   make(map[string]string),
-		IsDefault: true,
+		Grid:        models.GridConfig{Rows: 3, Cols: 4},
+		Buttons:     make(map[string]string),
+		IsDefault:   true,
 	}
-
-	// Assign buttons to positions
 	positions := []string{"btn-0-0", "btn-0-1", "btn-1-0", "btn-1-1", "btn-2-0", "btn-2-1"}
 	for i, btnID := range buttonIDs {
 		if i < len(positions) {
 			defaultConfig.Buttons[positions[i]] = btnID
 		}
 	}
-
 	if err := a.configManager.Create(defaultConfig); err != nil {
 		log.Printf("Failed to create default configuration: %v", err)
 	}
-
 	log.Println("Default configuration created successfully")
 }
 
 // ==================== WAILS BINDINGS ====================
 
-// Button operations
+// ----- Button operations -----
+
 func (a *App) GetButtons() []*models.Button {
 	return a.buttonManager.List()
 }
@@ -236,7 +203,8 @@ func (a *App) DeleteButton(id string) error {
 	return a.buttonManager.Delete(id)
 }
 
-// Configuration operations
+// ----- Configuration operations -----
+
 func (a *App) GetConfigurations() []*models.Configuration {
 	return a.configManager.List()
 }
@@ -265,12 +233,12 @@ func (a *App) GetDefaultConfiguration() (*models.Configuration, error) {
 	return a.configManager.GetDefault()
 }
 
-// Resolve configuration (get with full button details)
 func (a *App) ResolveConfiguration(id string) (*models.ResolvedConfiguration, error) {
 	return a.configManager.Resolve(id)
 }
 
-// Session operations
+// ----- Session operations -----
+
 func (a *App) GetSessions() []*models.ClientSession {
 	return a.sessionManager.List()
 }
@@ -283,194 +251,274 @@ func (a *App) UpdateClientConfig(sessionID, configID string) error {
 	return a.sessionManager.UpdateConfig(sessionID, configID)
 }
 
-// OBS operations
-func (a *App) ConnectOBS(url, password string) error {
-	log.Printf("🔌 ConnectOBS called with RAW url: %q", url)
+// ----- Controller operations (generic) -----
 
-	// Workaround: Wails might be double-encoding the URL
-	// Decode it if needed
-	decodedURL := url
+// GetControllers returns status info for all registered controllers.
+func (a *App) GetControllers() []map[string]interface{} {
+	controllers := a.registry.List()
+	result := make([]map[string]interface{}, len(controllers))
+	for i, c := range controllers {
+		result[i] = map[string]interface{}{
+			"id":          c.ID(),
+			"name":        c.Name(),
+			"description": c.Description(),
+			"version":     c.Version(),
+			"connected":   c.IsConnected(),
+		}
+	}
+	return result
+}
+
+// GetControllerStatus returns the status map for the named controller.
+func (a *App) GetControllerStatus(id string) map[string]interface{} {
+	c, ok := a.registry.Get(id)
+	if !ok {
+		return map[string]interface{}{"error": fmt.Sprintf("controller %q not found", id)}
+	}
+	return c.GetStatus()
+}
+
+// GetControllerConfig returns the current (non-sensitive) configuration for the named controller.
+func (a *App) GetControllerConfig(id string) map[string]interface{} {
+	c, ok := a.registry.Get(id)
+	if !ok {
+		return nil
+	}
+	return c.GetCurrentConfig()
+}
+
+// GetControllerConfigSchema returns the config field definitions for the named controller.
+func (a *App) GetControllerConfigSchema(id string) []controller.ConfigField {
+	c, ok := a.registry.Get(id)
+	if !ok {
+		return nil
+	}
+	return c.GetConfigSchema()
+}
+
+// ConnectController connects or reconfigures the named controller.
+// For OBS, config should include "url" and optionally "password".
+// For plugin controllers, config is saved and forwarded via /initialize.
+func (a *App) ConnectController(id string, config map[string]interface{}) error {
+	switch id {
+	case "obs":
+		return a.connectOBS(config)
+	default:
+		return a.pluginManager.UpdateConfig(id, config)
+	}
+}
+
+// connectOBS handles the OBS-specific connection flow.
+func (a *App) connectOBS(config map[string]interface{}) error {
+	url, _ := config["url"].(string)
+	password, _ := config["password"].(string)
+
+	log.Printf("🔌 ConnectController(obs) called with url: %q", url)
+
+	// Wails sometimes double-encodes URLs
 	if strings.Contains(url, "%2F") {
-		var err error
-		decodedURL, err = neturl.QueryUnescape(url)
-		if err != nil {
-			log.Printf("⚠️  Failed to decode URL: %v", err)
-		} else {
-			log.Printf("🔧 Decoded URL from %q to %q", url, decodedURL)
+		if decoded, err := neturl.QueryUnescape(url); err == nil {
+			log.Printf("🔧 Decoded URL from %q to %q", url, decoded)
+			url = decoded
 		}
 	}
 
-	log.Printf("🔌 Connecting to: %s", decodedURL)
-	err := a.obsManager.Connect(decodedURL, password)
-	if err != nil {
-		log.Printf("❌ ConnectOBS failed: %v", err)
+	if err := a.obsController.Connect(url, password); err != nil {
+		log.Printf("❌ OBS connect failed: %v", err)
 		return err
 	}
-	log.Printf("✅ ConnectOBS succeeded")
+	log.Printf("✅ OBS connected to %s", url)
 
-	// Save credentials for next time
-	config := &models.OBSConfig{
-		URL:      decodedURL,
-		Password: password,
-	}
-	if err := a.storage.SaveJSON("obs_config.json", config); err != nil {
+	// Persist credentials
+	if err := a.obsController.SaveConfig(map[string]interface{}{"url": url, "password": password}); err != nil {
 		log.Printf("⚠️  Failed to save OBS config: %v", err)
-	} else {
-		log.Println("💾 OBS config saved")
 	}
-
-	// Reset state tracking so next status check logs
-	a.obsStatusInitialized = false
-
 	return nil
 }
 
-func (a *App) DisconnectOBS() error {
-	log.Println("🔌 DisconnectOBS called")
-	// Reset state tracking
-	a.obsStatusInitialized = false
-	return a.obsManager.Disconnect()
+// DisconnectController disconnects the named controller.
+func (a *App) DisconnectController(id string) error {
+	log.Printf("🔌 DisconnectController(%s) called", id)
+	c, ok := a.registry.Get(id)
+	if !ok {
+		return fmt.Errorf("controller %q not found", id)
+	}
+	return c.Shutdown()
 }
 
-// func (a *App) GetOBSStatus() map[string]interface{} {
-// 	currentlyConnected := a.obsManager.IsConnected()
+// ExecuteAction routes a button action through the controller registry.
+func (a *App) ExecuteAction(action models.ButtonAction) error {
+	return a.registry.ExecuteAction(action)
+}
 
-// 	status := map[string]interface{}{
-// 		"connected": currentlyConnected,
-// 		"url":       a.obsManager.GetURL(),
-// 	}
+// GetConfigurationButtonIndicators returns per-button indicator classes for all
+// buttons in the given configuration.
+func (a *App) GetConfigurationButtonIndicators(configID string) (map[string]string, error) {
+	cfg, err := a.configManager.Get(configID)
+	if err != nil {
+		return nil, err
+	}
 
-// 	// Log only on state changes or first call
-// 	if !a.obsStatusInitialized {
-// 		// First call - log it
-// 		log.Printf("📊 GetOBSStatus (initial): connected=%v", currentlyConnected)
-// 		a.obsStatusInitialized = true
-// 		a.lastOBSConnected = currentlyConnected
-// 	} else if currentlyConnected != a.lastOBSConnected {
-// 		// Connection state changed - log it
-// 		if currentlyConnected {
-// 			log.Printf("✅ OBS reconnected")
-// 		} else {
-// 			log.Printf("❌ OBS disconnected")
-// 		}
-// 		a.lastOBSConnected = currentlyConnected
-// 	}
-// 	// else: No state change, no logging (silent heartbeat)
+	seen := make(map[string]bool)
+	buttonActions := make(map[string]models.ButtonAction, len(cfg.Buttons))
+	for _, buttonID := range cfg.Buttons {
+		btn, err := a.buttonManager.Get(buttonID)
+		if err != nil {
+			continue
+		}
+		buttonActions[buttonID] = btn.Action
+		ctrlID := btn.Action.Controller
+		if ctrlID == "" {
+			ctrlID = "obs"
+		}
+		seen[ctrlID] = true
+	}
 
-// 	return status
-// }
+	for ctrlID := range seen {
+		if ctrl, ok := a.registry.Get(ctrlID); ok {
+			ctrl.GetStatus()
+		}
+	}
+
+	indicators := make(map[string]string, len(buttonActions))
+	for buttonID, action := range buttonActions {
+		ctrlID := action.Controller
+		if ctrlID == "" {
+			ctrlID = "obs"
+		}
+		if ctrl, ok := a.registry.Get(ctrlID); ok {
+			indicators[buttonID] = ctrl.ComputeIndicator(action)
+		} else {
+			indicators[buttonID] = ""
+		}
+	}
+	return indicators, nil
+}
+
+// ControllerActionGroup groups a controller's supported action types for the button editor.
+type ControllerActionGroup struct {
+	ControllerID   string                            `json:"controller_id"`
+	ControllerName string                            `json:"controller_name"`
+	Connected      bool                              `json:"connected"`
+	Actions        []controller.ActionTypeDefinition `json:"actions"`
+}
+
+// GetAllActionTypes returns supported action types from every registered controller,
+// grouped by controller. Used by the button editor to populate the action picker.
+func (a *App) GetAllActionTypes() []ControllerActionGroup {
+	controllers := a.registry.List()
+	result := make([]ControllerActionGroup, 0, len(controllers))
+	for _, c := range controllers {
+		result = append(result, ControllerActionGroup{
+			ControllerID:   c.ID(),
+			ControllerName: c.Name(),
+			Connected:      c.IsConnected(),
+			Actions:        c.SupportedActionTypes(),
+		})
+	}
+	return result
+}
+
+// ----- OBS-specific query bindings -----
+// These are kept as named methods because the Wails frontend has OBS-specific
+// settings panels that query scenes, inputs, and source states.
 
 func (a *App) GetOBSStatus() map[string]interface{} {
-	// Get detailed status from OBS manager (includes streaming, recording, current_scene)
-	status, err := a.obsManager.GetStatus()
-	if err != nil {
-		// Return disconnected state
-		return map[string]interface{}{
-			"connected":     false,
-			"streaming":     false,
-			"recording":     false,
-			"current_scene": "",
-		}
-	}
-
-	// Status already includes: connected, streaming, recording, current_scene
-	return status
-}
-
-// GetSavedOBSConfig returns the saved OBS credentials
-func (a *App) GetSavedOBSConfig() *models.OBSConfig {
-	// Check environment variables first
-	envURL := os.Getenv("OBS_WEBSOCKET_URL")
-	envPassword := os.Getenv("OBS_WEBSOCKET_PASSWORD")
-
-	if envURL != "" {
-		log.Printf("📋 Using OBS config from environment variables")
-		return &models.OBSConfig{
-			URL:      envURL,
-			Password: envPassword,
-		}
-	}
-
-	// Fall back to saved config file
-	var config models.OBSConfig
-	if err := a.storage.LoadJSON("obs_config.json", &config); err != nil {
-		log.Printf("📋 No saved OBS config found, using defaults")
-		return &models.OBSConfig{
-			URL:      "localhost:4455",
-			Password: "",
-		}
-	}
-	log.Printf("📋 Loaded saved OBS config: url=%s", config.URL)
-	return &config
+	return a.obsController.GetStatus()
 }
 
 func (a *App) GetScenes() ([]string, error) {
 	log.Println("📞 GetScenes() called from frontend")
-	return a.obsManager.GetScenes()
+	return a.obsController.GetScenes()
 }
 
 func (a *App) GetInputs() ([]string, error) {
 	log.Println("📞 GetInputs() called from frontend")
-	return a.obsManager.GetInputs()
+	return a.obsController.GetInputs()
 }
 
-func (a *App) ExecuteAction(action models.ButtonAction) error {
-	return a.obsManager.ExecuteAction(action)
-}
-
-// GetSourceVisibility checks if a source is currently visible
 func (a *App) GetSourceVisibility(sceneName, sourceName string) (bool, error) {
-	// log.Printf("Checking visibility: scene=%s, source=%s", sceneName, sourceName)
-	visible, err := a.obsManager.GetSourceVisibility(sceneName, sourceName)
-	if err != nil {
-		log.Printf("Failed to check visibility: %v", err)
-		return false, err
-	}
-	// log.Printf("Source %s is visible: %v", sourceName, visible)
-	return visible, nil
+	return a.obsController.GetSourceVisibility(sceneName, sourceName)
 }
 
-// Test configuration by executing all actions in preview mode
+// ----- Plugin management bindings -----
+
+// InstallPlugin copies the binary at binaryPath into the plugins directory
+// and starts the plugin. Call this from the Wails file-picker handler.
+func (a *App) InstallPlugin(binaryPath string) error {
+	log.Printf("📦 Installing plugin from: %s", binaryPath)
+	return a.pluginManager.Install(binaryPath)
+}
+
+// GetInstalledPlugins returns info about all running plugin processes.
+func (a *App) GetInstalledPlugins() []map[string]interface{} {
+	return a.pluginManager.List()
+}
+
+// UninstallPlugin stops and removes the named plugin.
+func (a *App) UninstallPlugin(id string) error {
+	return a.pluginManager.Uninstall(id)
+}
+
+// ----- Server info -----
+
+func (a *App) GetServerInfo() map[string]interface{} {
+	ips := a.getLocalIPs()
+	clientURLs := make([]string, len(ips))
+	for i, ip := range ips {
+		clientURLs[i] = fmt.Sprintf("http://%s:8080", ip)
+	}
+
+	controllerStatus := make(map[string]bool)
+	for _, c := range a.registry.List() {
+		controllerStatus[c.ID()] = c.IsConnected()
+	}
+
+	return map[string]interface{}{
+		"version":         Version,
+		"api_port":        8080,
+		"ip_addresses":    ips,
+		"client_urls":     clientURLs,
+		"obs_connected":   a.obsController.IsConnected(),
+		"controllers":     controllerStatus,
+		"active_sessions": len(a.sessionManager.List()),
+		"configurations":  len(a.configManager.List()),
+		"buttons":         len(a.buttonManager.List()),
+	}
+}
+
+func (a *App) TestBinding(message string) string {
+	response := fmt.Sprintf("✅ Wails binding works! You sent: %s", message)
+	log.Println(response)
+	return response
+}
+
 func (a *App) TestConfiguration(configID string) error {
 	config, err := a.configManager.Resolve(configID)
 	if err != nil {
 		return err
 	}
-
-	if !a.obsManager.IsConnected() {
+	if !a.obsController.IsConnected() {
 		return fmt.Errorf("not connected to OBS")
 	}
-
 	log.Printf("Testing configuration: %s (%d buttons)", config.Name, len(config.Buttons))
 	return nil
 }
 
-// getLocalIPs returns all non-loopback IPv4 addresses
 func (a *App) getLocalIPs() []string {
 	var ips []string
-
 	interfaces, err := net.Interfaces()
 	if err != nil {
-		log.Printf("Failed to get network interfaces: %v", err)
 		return ips
 	}
-
 	for _, iface := range interfaces {
-		// Skip down interfaces
-		if iface.Flags&net.FlagUp == 0 {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-
-		// Skip loopback
-		if iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-
 		addrs, err := iface.Addrs()
 		if err != nil {
 			continue
 		}
-
 		for _, addr := range addrs {
 			var ip net.IP
 			switch v := addr.(type) {
@@ -479,42 +527,11 @@ func (a *App) getLocalIPs() []string {
 			case *net.IPAddr:
 				ip = v.IP
 			}
-
-			// Skip loopback and IPv6
 			if ip == nil || ip.IsLoopback() || ip.To4() == nil {
 				continue
 			}
-
 			ips = append(ips, ip.String())
 		}
 	}
-
 	return ips
-}
-
-// Get server info
-func (a *App) GetServerInfo() map[string]interface{} {
-	ips := a.getLocalIPs()
-	clientURLs := make([]string, len(ips))
-	for i, ip := range ips {
-		clientURLs[i] = fmt.Sprintf("http://%s:8080", ip)
-	}
-
-	return map[string]interface{}{
-		"version":         Version,
-		"api_port":        8080,
-		"ip_addresses":    ips,
-		"client_urls":     clientURLs,
-		"obs_connected":   a.obsManager.IsConnected(),
-		"active_sessions": len(a.sessionManager.List()),
-		"configurations":  len(a.configManager.List()),
-		"buttons":         len(a.buttonManager.List()),
-	}
-}
-
-// TestBinding - Simple test to verify Wails bindings are working
-func (a *App) TestBinding(message string) string {
-	response := fmt.Sprintf("✅ Wails binding works! You sent: %s", message)
-	log.Println(response)
-	return response
 }

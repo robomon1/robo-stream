@@ -256,6 +256,36 @@ jobs:
           echo "Build verification failed"
           exit 1
 
+  test-plugin-zoomosc:
+    name: Test ZoomOSC Plugin Build
+    runs-on: ubuntu-22.04
+    if: vars.SKIP_CI != 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build plugin
+        run: |
+          cd plugins/zoomosc
+          go build ./...
+
+      - name: Run tests
+        run: |
+          cd plugins/zoomosc
+          go test ./...
+
+      - name: Cross-compile all platforms
+        run: |
+          cd plugins/zoomosc
+          GOOS=darwin  GOARCH=arm64 go build -o /dev/null .
+          GOOS=darwin  GOARCH=amd64 go build -o /dev/null .
+          GOOS=windows GOARCH=amd64 go build -o /dev/null .
+          GOOS=linux   GOARCH=amd64 go build -o /dev/null .
+
   # Optional: Add linting
   # lint-server:
   #   name: Lint Server Code
