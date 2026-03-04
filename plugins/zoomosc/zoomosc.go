@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/robomon1/robo-stream/sdk"
 )
@@ -89,13 +88,6 @@ func (z *ZoomOSCController) ConfigSchema() []sdk.ConfigField {
 			Type:    "number",
 			Default: fmt.Sprintf("%d", defaultZoomOSCPort),
 			Help:    "UDP port ZoomOSC listens on for commands. Match the 'Receiving Port' in ZoomOSC settings (default 9090).",
-		},
-		{
-			Key:     "listen_port",
-			Label:   "Feedback Listen Port",
-			Type:    "number",
-			Default: fmt.Sprintf("%d", defaultListenPort),
-			Help:    "UDP port this plugin listens on for ZoomOSC feedback. Set ZoomOSC 'Transmission Port' to this value (default 1234).",
 		},
 	}
 }
@@ -214,14 +206,15 @@ func (z *ZoomOSCController) Execute(action sdk.ExecuteRequest) error {
 	}
 
 	if err == nil {
-		// Trigger an immediate pong by pinging ZoomOSC after a short delay.
-		// ZoomOSC's pong carries the current mute/video/share state, so this
-		// ensures the client's reconcile loop sees the updated state within
-		// ~200 ms rather than waiting up to 5 s for the next scheduled ping.
-		go func() {
-			time.Sleep(200 * time.Millisecond)
-			_ = z.client.Ping()
-		}()
+		// Apply optimistic state immediately so indicators respond before
+		// ZoomOSC confirms the change via an event. ZoomOSC will send the
+		// real /zoomosc/me/mute, videoOn, etc. event shortly after, which
+		// overwrites the optimistic value with the confirmed truth.
+		// NOTE: we do NOT send a post-action ping here. ZoomOSC's pong does
+		// not carry audio/video/share state (only inCallStatus, numTargets,
+		// numUsersInCall, isPro), so pinging would not help. State updates
+		// come exclusively from event-driven outputs.
+		z.client.applyOptimisticAction(action.Type)
 	}
 	return err
 }
@@ -265,8 +258,8 @@ func (z *ZoomOSCController) DefaultButtons() []sdk.Button {
 // ──────────────────────────────────────────────────────────────────────────────
 
 func (z *ZoomOSCController) applyConfig(cfg map[string]interface{}) error {
-	// Port config changes require restarting the client; for now, just update
-	// the send port (the listen port can't change without restarting the server).
+	// Port config changes require restarting the client; apply only the send
+	// port at runtime.
 	if v, ok := cfg["zoomosc_port"]; ok {
 		switch p := v.(type) {
 		case float64:
