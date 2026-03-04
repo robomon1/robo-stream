@@ -260,15 +260,20 @@ func (h *HostController) ComputeIndicator(action models.ButtonAction) string {
 	// Strategy: prefer a field-specific "{field}_known" flag if the plugin
 	// provides one (e.g. "video_known" for the "video" IndicatorField). Fall
 	// back to the global "state_known" flag for plugins that only track
-	// overall state. Return "" for any field that hasn't been confirmed yet.
+	// overall state.
+	//
+	// Return "unknown" (not "") when the field HAS an indicator configured but
+	// its state hasn't been confirmed yet — the client renders a "?" badge so
+	// the user knows the button is waiting for state, rather than showing
+	// nothing at all. "" is reserved for buttons with no indicator at all.
 	fieldKnownKey := def.IndicatorField + "_known"
 	if fieldKnownRaw, exists := status[fieldKnownKey]; exists {
 		if fieldKnown, isBool := fieldKnownRaw.(bool); isBool && !fieldKnown {
-			return ""
+			return "unknown"
 		}
 	} else if stateKnownRaw, exists := status["state_known"]; exists {
 		if stateKnown, isBool := stateKnownRaw.(bool); isBool && !stateKnown {
-			return ""
+			return "unknown"
 		}
 	}
 

@@ -219,13 +219,18 @@ function getIndicatorClass(buttonId) {
     return indicatorState[buttonId] || '';
 }
 
-// Apply the correct 'recording' CSS class to a single button element.
+// Apply the correct indicator CSS class to a single button element.
+// Possible states:
+//   "active"  → white dot (recording class) — server confirmed the target state is active
+//   "unknown" → grey "?" dot — button has an indicator but state not yet confirmed
+//   ""        → no indicator — button has no indicator field at all
 function updateButtonIndicator(buttonEl) {
     const cls = getIndicatorClass(buttonEl.dataset.buttonId);
-    if (cls) {
+    buttonEl.classList.remove('recording', 'indicator-unknown');
+    if (cls === 'active') {
         buttonEl.classList.add('recording');
-    } else {
-        buttonEl.classList.remove('recording');
+    } else if (cls === 'unknown') {
+        buttonEl.classList.add('indicator-unknown');
     }
 }
 
