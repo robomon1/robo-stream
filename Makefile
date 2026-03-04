@@ -5,6 +5,7 @@
 .PHONY: server server-mac server-windows server-linux
 .PHONY: client client-mac client-windows client-linux
 .PHONY: mobile android ios
+.PHONY: zoomosc zoomosc-mac zoomosc-windows zoomosc-linux
 .PHONY: release package
 
 # Load environment variables from .env file if it exists
@@ -19,15 +20,20 @@ VERSION ?= 1.0.0
 BUILD := $(shell echo $$(($$(date +%s) - 1000000000)))
 
 # Directories
-SERVER_DIR = server
-CLIENT_DIR = client-web
-RELEASE_DIR = releases/v$(VERSION)
+SERVER_DIR    = server
+CLIENT_DIR    = client-web
+ZOOMOSC_DIR   = plugins/zoomosc
+RELEASE_DIR   = releases/v$(VERSION)
 
 # Build outputs
-SERVER_BUILD = $(SERVER_DIR)/build/bin
-CLIENT_BUILD = $(CLIENT_DIR)/electron-dist
-ANDROID_BUILD = $(CLIENT_DIR)/android/app/build/outputs/apk/release
-IOS_BUILD = $(CLIENT_DIR)/ios/build
+SERVER_BUILD   = $(SERVER_DIR)/build/bin
+CLIENT_BUILD   = $(CLIENT_DIR)/electron-dist
+ANDROID_BUILD  = $(CLIENT_DIR)/android/app/build/outputs/apk/release
+IOS_BUILD      = $(CLIENT_DIR)/ios/build
+ZOOMOSC_BUILD  = $(ZOOMOSC_DIR)/dist
+
+# ZoomOSC plugin version (read from its version.txt)
+ZOOMOSC_VERSION ?= $(shell cat $(ZOOMOSC_DIR)/version.txt 2>/dev/null || echo "dev")
 
 #==============================================================================
 # Help
@@ -57,25 +63,32 @@ help:
 	@echo "  make android-bundle   - Build Android App Bundle (for Play Store)"
 	@echo "  make ios              - Build iOS (opens Xcode)"
 	@echo ""
+	@echo "ZoomOSC plugin:"
+	@echo "  make zoomosc          - Build ZoomOSC plugin for all platforms"
+	@echo "  make zoomosc-mac      - Build ZoomOSC plugin for macOS (arm64 + amd64)"
+	@echo "  make zoomosc-windows  - Build ZoomOSC plugin for Windows (amd64)"
+	@echo "  make zoomosc-linux    - Build ZoomOSC plugin for Linux (amd64)"
+	@echo ""
 	@echo "Code signing (macOS):"
 	@echo "  make client-mac-signed - Sign with keychain cert (may prompt)"
 	@echo "  CSC_LINK=/path/to/cert.p12 CSC_KEY_PASSWORD=pwd make client-mac-signed"
 	@echo "                         - Sign with .p12 file (no prompts)"
 	@echo ""
 	@echo "Version management:"
-	@echo "  make version                                - Show all current versions"
-	@echo "  make set-client-version VERSION=x.x.x - Set client version (build auto-generated)"
-	@echo "  make set-server-version VERSION=x.x.x - Set server version"
-	@echo "  make set-version VERSION=x.x.x        - Set both versions (build auto-generated)"
+	@echo "  make version                                 - Show all current versions"
+	@echo "  make set-client-version VERSION=x.x.x  - Set client version (build auto-generated)"
+	@echo "  make set-server-version VERSION=x.x.x  - Set server version"
+	@echo "  make set-zoomosc-version VERSION=x.x.x - Set ZoomOSC plugin version"
+	@echo "  make set-version VERSION=x.x.x         - Set all versions (build auto-generated)"
 	@echo ""
-	@echo "Example: make set-client-version VERSION=1.0.1"
+	@echo "Example: make set-version VERSION=1.0.1"
 	@echo "  Build number is auto-calculated as: unix timestamp - 1,000,000,000"
 
 #==============================================================================
 # Main Targets
 #==============================================================================
 
-all: server client mobile
+all: server client mobile zoomosc
 	@echo "✅ All builds complete!"
 	@echo ""
 	@echo "Build artifacts:"
@@ -83,6 +96,7 @@ all: server client mobile
 	@echo "  Client:  $(CLIENT_BUILD)/"
 	@echo "  Android: $(ANDROID_BUILD)/"
 	@echo "  iOS:     $(IOS_BUILD)/"
+	@echo "  ZoomOSC: $(ZOOMOSC_BUILD)/"
 
 server: server-mac server-windows server-linux
 	@echo "✅ Server builds complete"
@@ -238,6 +252,29 @@ ios: client-prepare
 	cd $(CLIENT_DIR) && npx cap open ios
 
 #==============================================================================
+# ZoomOSC Plugin
+#==============================================================================
+
+zoomosc: zoomosc-mac zoomosc-windows zoomosc-linux
+	@echo "✅ ZoomOSC plugin builds complete"
+	@echo "   Output: $(ZOOMOSC_BUILD)/"
+
+zoomosc-mac:
+	@echo "🔨 Building ZoomOSC plugin for macOS (arm64 + amd64)..."
+	$(MAKE) -C $(ZOOMOSC_DIR) build-mac-arm64 build-mac-amd64 VERSION=$(ZOOMOSC_VERSION)
+	@echo "✅ ZoomOSC macOS builds complete"
+
+zoomosc-windows:
+	@echo "🔨 Building ZoomOSC plugin for Windows (amd64)..."
+	$(MAKE) -C $(ZOOMOSC_DIR) build-windows VERSION=$(ZOOMOSC_VERSION)
+	@echo "✅ ZoomOSC Windows build complete"
+
+zoomosc-linux:
+	@echo "🔨 Building ZoomOSC plugin for Linux (amd64)..."
+	$(MAKE) -C $(ZOOMOSC_DIR) build-linux VERSION=$(ZOOMOSC_VERSION)
+	@echo "✅ ZoomOSC Linux build complete"
+
+#==============================================================================
 # Release Packaging
 #==============================================================================
 
@@ -280,7 +317,13 @@ package: clean-release
 	@if [ -f "$(IOS_BUILD)/App.ipa" ]; then \
 		cp $(IOS_BUILD)/App.ipa $(RELEASE_DIR)/robo-stream-client-v$(VERSION).ipa; \
 	fi
-	
+
+	@# ZoomOSC plugin
+	@echo "📁 Copying ZoomOSC plugin archives..."
+	@for f in $(ZOOMOSC_BUILD)/zoomosc-controller-*.tar.gz $(ZOOMOSC_BUILD)/zoomosc-controller-*.zip; do \
+		[ -f "$$f" ] && cp "$$f" $(RELEASE_DIR)/ && echo "  $$f"; \
+	done || true
+
 	@echo ""
 	@echo "✅ Release package created: $(RELEASE_DIR)/"
 	@echo ""
@@ -319,6 +362,10 @@ test-client:
 	@echo "🧪 Testing client..."
 	cd $(CLIENT_DIR) && npm test
 
+test-zoomosc:
+	@echo "🧪 Testing ZoomOSC plugin..."
+	cd $(ZOOMOSC_DIR) && go test ./...
+
 #==============================================================================
 # Clean
 #==============================================================================
@@ -331,6 +378,7 @@ clean:
 	rm -rf $(CLIENT_DIR)/ios/build
 	rm -rf $(CLIENT_DIR)/dist
 	rm -rf $(CLIENT_DIR)/node_modules/.vite
+	rm -rf $(ZOOMOSC_BUILD)
 	@echo "✅ Clean complete"
 
 clean-release:
@@ -348,6 +396,9 @@ clean-all: clean clean-release
 #==============================================================================
 
 version:
+	@echo "Server (wails.json):"
+	@grep '"productVersion"' $(SERVER_DIR)/wails.json | sed 's/^[[:space:]]*/  /' || echo "  Not found"
+	@echo ""
 	@echo "Client package.json:"
 	@grep '"version"' $(CLIENT_DIR)/package.json | sed 's/^[[:space:]]*/  /' || echo "  Not found"
 	@echo ""
@@ -359,8 +410,8 @@ version:
 	@grep 'MARKETING_VERSION = ' $(CLIENT_DIR)/ios/App/App.xcodeproj/project.pbxproj | head -1 | sed 's/^[[:space:]]*/  /' || echo "  Not found"
 	@grep 'CURRENT_PROJECT_VERSION = ' $(CLIENT_DIR)/ios/App/App.xcodeproj/project.pbxproj | head -1 | sed 's/^[[:space:]]*/  /' || echo "  Not found"
 	@echo ""
-	@echo "Server (wails.json):"
-	@grep '"productVersion"' $(SERVER_DIR)/wails.json | sed 's/^[[:space:]]*/  /' || echo "  Not found"
+	@echo "ZoomOSC plugin (plugins/zoomosc/version.txt):"
+	@cat $(ZOOMOSC_DIR)/version.txt 2>/dev/null | sed 's/^/  /' || echo "  Not found"
 
 set-client-version:
 	@if [ -z "$(VERSION)" ]; then \
@@ -434,12 +485,23 @@ set-server-version:
 	@echo "  2. git commit -m 'Bump server version to $(VERSION)'"
 	@echo "  3. git tag server-v$(VERSION)"
 
-set-version: set-client-version set-server-version
+set-zoomosc-version:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "❌ Error: VERSION not specified"; \
+		echo "Usage: make set-zoomosc-version VERSION=1.0.0"; \
+		exit 1; \
+	fi
+	@echo "Setting ZoomOSC plugin version to $(VERSION)..."
+	@echo "$(VERSION)" > $(ZOOMOSC_DIR)/version.txt
 	@echo ""
-	@echo "✅ All versions updated!"
+	@echo "✅ ZoomOSC plugin version updated to $(VERSION)"
 	@echo ""
-	@echo "Note: Server and client can have different versions."
-	@echo "Use set-client-version or set-server-version to update independently."
+	@echo "Updated files:"
+	@echo "  • $(ZOOMOSC_DIR)/version.txt"
+
+set-version: set-client-version set-server-version set-zoomosc-version
+	@echo ""
+	@echo "✅ All versions updated to $(VERSION)!"
 
 #==============================================================================
 # Quick Builds (for testing)

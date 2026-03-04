@@ -1,6 +1,8 @@
 BINARY    := zoomosc-controller
 MODULE    := github.com/robomon1/robostream-zoomosc-controller
-VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+# VERSION can be overridden from the parent Makefile (make -C plugins/zoomosc VERSION=x.x.x).
+# Falls back to version.txt in this directory, then to git describe.
+VERSION   ?= $(shell cat version.txt 2>/dev/null || git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS   := -ldflags "-s -w -X main.Version=$(VERSION)"
 
 # Output directory for release archives
