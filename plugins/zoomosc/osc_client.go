@@ -288,7 +288,10 @@ func (c *zoomOSCClient) handleMessage(msg *osc.Message) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	log.Printf("zoomosc: OSC rx: %s  args=%s", msg.Address, fmtArgs(msg))
+	// Log all messages except the high-frequency pong/ping heartbeats.
+	if msg.Address != "/zoomosc/pong" && msg.Address != "/zoomosc/ping" {
+		log.Printf("zoomosc: OSC rx: %s  args=%s", msg.Address, fmtArgs(msg))
+	}
 
 	// Any message from ZoomOSC means it is alive.
 	c.lastPingAck = time.Now()
