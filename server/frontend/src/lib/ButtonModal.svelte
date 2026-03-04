@@ -161,10 +161,17 @@
     }
   }
 
+  function findActionDef(controllerId, actionType) {
+    return flatActionTypes.find(a => a.controller === controllerId && a.value === actionType);
+  }
+
   // Keep actionController in sync whenever the user picks a different action
   $: {
     if (flatActionTypes.length > 0 && formData.actionType) {
-      const found = flatActionTypes.find(a => a.value === formData.actionType);
+      const preferredController = formData.actionController || activeTab;
+      const found =
+        findActionDef(preferredController, formData.actionType) ||
+        flatActionTypes.find(a => a.value === formData.actionType);
       if (found) {
         formData.actionController = found.controller;
         activeTab                 = found.controller; // keep tab in sync
@@ -191,7 +198,7 @@
 
   function getRequiredParams() {
     if (flatActionTypes.length > 0) {
-      const def = flatActionTypes.find(a => a.value === formData.actionType);
+      const def = findActionDef(formData.actionController, formData.actionType);
       return def?.params ?? [];
     }
     const def = obsActionsFallback.find(a => a.value === formData.actionType);

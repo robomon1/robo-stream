@@ -26,6 +26,8 @@ export function GetButtons():Promise<Array<models.Button>>;
 
 export function GetConfiguration(arg1:string):Promise<models.Configuration>;
 
+export function GetConfigurationButtonIndicators(arg1:string):Promise<Record<string, string>>;
+
 export function GetConfigurations():Promise<Array<models.Configuration>>;
 
 export function GetControllerConfig(arg1:string):Promise<Record<string, any>>;

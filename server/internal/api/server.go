@@ -249,12 +249,19 @@ func (s *Server) executeAction(w http.ResponseWriter, r *http.Request) {
 		s.respondError(w, http.StatusBadRequest, "missing X-Session-ID header")
 		return
 	}
+	if _, err := s.sessionManager.Get(sessionID); err != nil {
+		s.respondError(w, http.StatusNotFound, "session not found")
+		return
+	}
 	var action models.ButtonAction
 	if err := json.NewDecoder(r.Body).Decode(&action); err != nil {
 		s.respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	s.sessionManager.UpdateActivity(sessionID)
+	if err := s.sessionManager.UpdateActivity(sessionID); err != nil {
+		s.respondError(w, http.StatusNotFound, "session not found")
+		return
+	}
 	if err := s.registry.ExecuteAction(action); err != nil {
 		s.respondError(w, http.StatusInternalServerError, err.Error())
 		return

@@ -33,15 +33,17 @@ type pluginReadyMsg struct {
 
 // PluginProcess represents a running plugin subprocess.
 type PluginProcess struct {
-	ID      string
-	cmd     *exec.Cmd
-	port    int
-	ctrl    *HostController
-	stopCh  chan struct{}
-	execPath string
+	ID        string
+	cmd       *exec.Cmd
+	port      int
+	ctrl      *HostController
+	stopCh    chan struct{}
+	execPath  string
+	startedAt time.Time
 }
 
 const maxPluginCrashes = 3
+const crashResetUptime = 2 * time.Minute
 
 // Manager discovers, starts, and monitors plugin subprocesses.
 // It is safe for concurrent use.
@@ -243,12 +245,6 @@ func (m *Manager) startPlugin(pluginDir, execPath string) error {
 
 	log.Printf("plugin: %s v%s started on port %d", msg.ID, msg.Version, msg.Port)
 
-	// A fresh successful start resets the crash counter so the plugin gets
-	// a full new budget of retries if it later crashes after a long uptime.
-	m.mu.Lock()
-	m.crashCounts[msg.ID] = 0
-	m.mu.Unlock()
-
 	// Load persisted config
 	cfg := m.loadConfig(msg.ID)
 
@@ -261,12 +257,13 @@ func (m *Manager) startPlugin(pluginDir, execPath string) error {
 
 	stopCh := make(chan struct{})
 	proc := &PluginProcess{
-		ID:       msg.ID,
-		cmd:      cmd,
-		port:     msg.Port,
-		ctrl:     ctrl,
-		stopCh:   stopCh,
-		execPath: execPath,
+		ID:        msg.ID,
+		cmd:       cmd,
+		port:      msg.Port,
+		ctrl:      ctrl,
+		stopCh:    stopCh,
+		execPath:  execPath,
+		startedAt: time.Now(),
 	}
 
 	m.mu.Lock()
@@ -338,6 +335,10 @@ func (m *Manager) monitorProcess(proc *PluginProcess) {
 	// Remove from the process map and increment crash counter.
 	m.mu.Lock()
 	delete(m.processes, proc.ID)
+	if time.Since(proc.startedAt) >= crashResetUptime {
+		// The plugin was stable for a while; treat this as a fresh crash window.
+		m.crashCounts[proc.ID] = 0
+	}
 	m.crashCounts[proc.ID]++
 	count := m.crashCounts[proc.ID]
 	m.mu.Unlock()

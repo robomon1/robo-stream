@@ -46,6 +46,10 @@ export function GetConfiguration(arg1) {
   return window['go']['main']['App']['GetConfiguration'](arg1);
 }
 
+export function GetConfigurationButtonIndicators(arg1) {
+  return window['go']['main']['App']['GetConfigurationButtonIndicators'](arg1);
+}
+
 export function GetConfigurations() {
   return window['go']['main']['App']['GetConfigurations']();
 }

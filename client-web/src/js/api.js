@@ -137,6 +137,17 @@ export class APIClient {
     }
   }
 
+  // Get status details for a specific controller.
+  async getControllerStatus(controllerID) {
+    try {
+      const response = await fetch(`${this.serverURL}/api/controllers/${controllerID}/status`);
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      return await response.json();
+    } catch (err) {
+      return null;
+    }
+  }
+
   // Get OBS status
   async getOBSStatus() {
     try {

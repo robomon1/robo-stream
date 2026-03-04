@@ -351,6 +351,50 @@ func (a *App) ExecuteAction(action models.ButtonAction) error {
 	return a.registry.ExecuteAction(action)
 }
 
+// GetConfigurationButtonIndicators returns per-button indicator classes for all
+// buttons in the given configuration.
+func (a *App) GetConfigurationButtonIndicators(configID string) (map[string]string, error) {
+	cfg, err := a.configManager.Get(configID)
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]bool)
+	buttonActions := make(map[string]models.ButtonAction, len(cfg.Buttons))
+	for _, buttonID := range cfg.Buttons {
+		btn, err := a.buttonManager.Get(buttonID)
+		if err != nil {
+			continue
+		}
+		buttonActions[buttonID] = btn.Action
+		ctrlID := btn.Action.Controller
+		if ctrlID == "" {
+			ctrlID = "obs"
+		}
+		seen[ctrlID] = true
+	}
+
+	for ctrlID := range seen {
+		if ctrl, ok := a.registry.Get(ctrlID); ok {
+			ctrl.GetStatus()
+		}
+	}
+
+	indicators := make(map[string]string, len(buttonActions))
+	for buttonID, action := range buttonActions {
+		ctrlID := action.Controller
+		if ctrlID == "" {
+			ctrlID = "obs"
+		}
+		if ctrl, ok := a.registry.Get(ctrlID); ok {
+			indicators[buttonID] = ctrl.ComputeIndicator(action)
+		} else {
+			indicators[buttonID] = ""
+		}
+	}
+	return indicators, nil
+}
+
 // ControllerActionGroup groups a controller's supported action types for the button editor.
 type ControllerActionGroup struct {
 	ControllerID   string                            `json:"controller_id"`
@@ -431,15 +475,15 @@ func (a *App) GetServerInfo() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"version":            Version,
-		"api_port":           8080,
-		"ip_addresses":       ips,
-		"client_urls":        clientURLs,
-		"obs_connected":      a.obsController.IsConnected(),
-		"controllers":        controllerStatus,
-		"active_sessions":    len(a.sessionManager.List()),
-		"configurations":     len(a.configManager.List()),
-		"buttons":            len(a.buttonManager.List()),
+		"version":         Version,
+		"api_port":        8080,
+		"ip_addresses":    ips,
+		"client_urls":     clientURLs,
+		"obs_connected":   a.obsController.IsConnected(),
+		"controllers":     controllerStatus,
+		"active_sessions": len(a.sessionManager.List()),
+		"configurations":  len(a.configManager.List()),
+		"buttons":         len(a.buttonManager.List()),
 	}
 }
 

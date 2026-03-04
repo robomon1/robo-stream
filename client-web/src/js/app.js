@@ -16,6 +16,17 @@ let indicatorState = {};
 // confirms the new state (or after a short timeout).
 // Values: "active" | "warn" | ""
 let indicatorOverrides = {};
+const buttonPressCooldownMs = 350;
+const lastButtonPressAt = {};
+
+const ZOOMOSC_ACTION_TYPES = new Set([
+    'toggle_audio', 'mute_audio', 'unmute_audio',
+    'toggle_video', 'start_video', 'stop_video',
+    'toggle_share', 'start_share', 'stop_share',
+    'raise_hand', 'lower_hand', 'toggle_hand',
+    'leave_meeting', 'end_meeting',
+    'spotlight_self', 'unspotlight_self'
+]);
 
 // Config caches — avoid redundant fetches
 let configListCache = null;        // lightweight summaries for the selector
@@ -263,6 +274,12 @@ function renderEmptyCell() {
 // - buttonId: button UUID (matches indicatorState and indicatorOverrides keys)
 // - action: the action descriptor sent to the server
 async function pressButton(position, buttonId, action) {
+    const now = Date.now();
+    if (lastButtonPressAt[buttonId] && now-lastButtonPressAt[buttonId] < buttonPressCooldownMs) {
+        return;
+    }
+    lastButtonPressAt[buttonId] = now;
+
     // Visual feedback
     const buttonEl = document.querySelector(`[data-position="${position}"]`);
     if (buttonEl) {
@@ -299,17 +316,32 @@ async function pressButton(position, buttonId, action) {
             updateAllIndicators();
 
             // Reconcile loop: poll the server every 500 ms until it confirms
-            // the state has changed (or until 5 attempts = ~2.5 s have passed).
-            // This handles slow feedback from plugins like ZoomOSC that may not
-            // echo state changes back immediately.
+            // the state has changed. For ZoomOSC we keep the optimistic override
+            // while the plugin still reports unknown state.
             let attempts = 0;
+            const controller = action.controller || (ZOOMOSC_ACTION_TYPES.has(actionType) ? 'zoomosc' : 'obs');
             const reconcile = async () => {
                 attempts++;
                 await updateButtonIndicators();
                 const serverState = indicatorState[buttonId] || '';
-                if (serverState !== preClickState || attempts >= 5) {
+                if (serverState !== preClickState) {
                     // Server confirmed the change (or we timed out) — hand off
                     // to the authoritative server state.
+                    delete indicatorOverrides[buttonId];
+                    updateAllIndicators();
+                    return;
+                }
+
+                // Keep optimistic state while ZoomOSC status is still unknown.
+                if (controller === 'zoomosc') {
+                    const status = await apiClient.getControllerStatus('zoomosc');
+                    if (status && status.state_known === false) {
+                        setTimeout(reconcile, 500);
+                        return;
+                    }
+                }
+
+                if (attempts >= 5) {
                     delete indicatorOverrides[buttonId];
                     updateAllIndicators();
                 } else {
