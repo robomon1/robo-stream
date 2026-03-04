@@ -987,6 +987,69 @@ jobs:
           path: ${{ runner.temp }}/export/*.ipa
 
   # ============================================================================
+  # ZOOMOSC PLUGIN BUILD
+  # ============================================================================
+
+  build-plugin-zoomosc:
+    name: Build ZoomOSC Plugin - All Platforms
+    needs: detect-version
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION="${{ needs.detect-version.outputs.version }}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build all platforms
+        run: |
+          cd plugins/zoomosc
+          BINARY=zoomosc-controller
+          VERSION="${{ steps.version.outputs.version }}"
+          LDFLAGS="-ldflags \"-s -w -X main.Version=$VERSION\""
+          mkdir -p dist
+
+          echo "Building darwin/arm64..."
+          GOOS=darwin  GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$VERSION" -o dist/${BINARY}-darwin-arm64 .
+
+          echo "Building darwin/amd64..."
+          GOOS=darwin  GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$VERSION" -o dist/${BINARY}-darwin-amd64 .
+
+          echo "Building windows/amd64..."
+          GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$VERSION" -o dist/${BINARY}-windows-amd64.exe .
+
+          echo "Building linux/amd64..."
+          GOOS=linux   GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$VERSION" -o dist/${BINARY}-linux-amd64 .
+
+      - name: Create release archives
+        run: |
+          cd plugins/zoomosc/dist
+          BINARY=zoomosc-controller
+          VERSION="${{ steps.version.outputs.version }}"
+
+          tar czf ${BINARY}-${VERSION}-darwin-arm64.tar.gz   ${BINARY}-darwin-arm64
+          tar czf ${BINARY}-${VERSION}-darwin-amd64.tar.gz   ${BINARY}-darwin-amd64
+          zip     ${BINARY}-${VERSION}-windows-amd64.zip     ${BINARY}-windows-amd64.exe
+          tar czf ${BINARY}-${VERSION}-linux-amd64.tar.gz    ${BINARY}-linux-amd64
+
+          echo "Archives created:"
+          ls -lh *.tar.gz *.zip
+
+      - name: Upload plugin artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-zoomosc
+          path: plugins/zoomosc/dist/zoomosc-controller-*.{tar.gz,zip}
+
+  # ============================================================================
   # CREATE UNIFIED RELEASE
   # ============================================================================
 
@@ -1000,6 +1063,7 @@ jobs:
       - build-client-macos
       - build-client-linux
       - build-client-windows
+      - build-plugin-zoomosc
     if: always() && needs.detect-version.result == 'success'
     runs-on: ubuntu-22.04
     permissions:
@@ -1045,7 +1109,11 @@ jobs:
           # Client mobile builds (if available)
           cp artifacts/client-android-apk/app-release.apk release/robo-stream-client-${{ steps.version.outputs.version }}.apk 2>/dev/null || echo "Android APK not found (mobile builds may be disabled)"
           cp artifacts/client-ios-ipa/*.ipa release/robo-stream-client-${{ steps.version.outputs.version }}.ipa 2>/dev/null || echo "iOS IPA not found (mobile builds may be disabled)"
-          
+
+          # ZoomOSC plugin
+          cp artifacts/plugin-zoomosc/zoomosc-controller-*.tar.gz release/ 2>/dev/null || echo "ZoomOSC plugin archives not found"
+          cp artifacts/plugin-zoomosc/zoomosc-controller-*.zip    release/ 2>/dev/null || echo "ZoomOSC plugin Windows archive not found"
+
           ls -la release/
 
       - name: Generate release notes
@@ -1095,9 +1163,23 @@ jobs:
           - [Apple App Store](https://apps.apple.com/app/robo-stream-client)
           - [TestFlight](https://testflight.apple.com/join/YOUR_CODE) (beta)
           - \`robo-stream-client-${VERSION}.ipa\` (development/enterprise only)
-          
+
+          ### 🔌 ZoomOSC Plugin Downloads
+
+          Standalone controller plugin that bridges ZoomOSC to Robo-Stream.
+
+          **macOS:**
+          - \`zoomosc-controller-${VERSION}-darwin-arm64.tar.gz\` (Apple Silicon)
+          - \`zoomosc-controller-${VERSION}-darwin-amd64.tar.gz\` (Intel)
+
+          **Linux:**
+          - \`zoomosc-controller-${VERSION}-linux-amd64.tar.gz\` (x86_64)
+
+          **Windows:**
+          - \`zoomosc-controller-${VERSION}-windows-amd64.zip\` (x86_64)
+
           ---
-          
+
           ### 📦 Installation
           
           #### Server

@@ -1,0 +1,76 @@
+name: Release ZoomOSC Controller
+
+# Triggered when a tag matching v* is pushed to the repository.
+# To release: git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Build all platforms
+        working-directory: plugins/zoomosc
+        run: make build-all VERSION=${{ steps.version.outputs.VERSION }}
+
+      - name: Create release archives
+        working-directory: plugins/zoomosc
+        run: make release VERSION=${{ steps.version.outputs.VERSION }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ZoomOSC Controller ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## Robo-Stream ZoomOSC Controller ${{ steps.version.outputs.VERSION }}
+
+            Controls the Zoom desktop client via [ZoomOSC](https://www.liminalet.com/zoomosc)
+            using the OSC (Open Sound Control) protocol over UDP.
+
+            ### Requirements
+
+            - Robo-Stream server 1.x or later
+            - [ZoomOSC](https://www.liminalet.com/zoomosc) by Liminal (free tier available)
+            - Zoom desktop client
+
+            ### Installation
+
+            1. Download the archive for your platform below and extract the `zoomosc-controller` binary.
+            2. Create the plugin directory and move the binary there:
+               - **macOS/Linux:** `~/.robo-stream-server/plugins/zoomosc/`
+               - **Windows:** `%APPDATA%\robo-stream-server\plugins\zoomosc\`
+            3. Configure ZoomOSC to send feedback to Robo-Stream:
+               - Open ZoomOSC → Settings
+               - Set **Transmission IP** to `127.0.0.1`
+               - Set **Transmission Port** to `1234`
+               - Set **Receiving Port** to `9090`
+            4. Restart the Robo-Stream server — the ZoomOSC controller will appear automatically.
+
+            ### Building a New Plugin
+
+            See the [Robo-Stream SDK](https://github.com/robomon1/robo-stream/tree/main/sdk)
+            for documentation on building your own controller plugin.
+          files: |
+            plugins/zoomosc/dist/zoomosc-controller-${{ steps.version.outputs.VERSION }}-darwin-arm64.tar.gz
+            plugins/zoomosc/dist/zoomosc-controller-${{ steps.version.outputs.VERSION }}-darwin-amd64.tar.gz
+            plugins/zoomosc/dist/zoomosc-controller-${{ steps.version.outputs.VERSION }}-windows-amd64.zip
+            plugins/zoomosc/dist/zoomosc-controller-${{ steps.version.outputs.VERSION }}-linux-amd64.tar.gz

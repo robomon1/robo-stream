@@ -27,7 +27,7 @@
       
       // Load saved credentials
       try {
-        const savedConfig = await window.go.main.App.GetSavedOBSConfig();
+        const savedConfig = await window.go.main.App.GetControllerConfig('obs');
         if (savedConfig) {
           url = savedConfig.url || 'localhost:4455';
           password = savedConfig.password || '';
@@ -86,9 +86,9 @@
     console.log('🔌 Attempting to connect to OBS:', url);
     
     try {
-      console.log('Calling ConnectOBS...');
-      await window.go.main.App.ConnectOBS(url, password);
-      console.log('✅ ConnectOBS call completed');
+      console.log('Calling ConnectController(obs)...');
+      await window.go.main.App.ConnectController('obs', { url, password });
+      console.log('✅ ConnectController(obs) call completed');
       
       // Wait a moment for connection to establish
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -119,7 +119,7 @@
     if (!wailsReady) return;
     
     try {
-      await window.go.main.App.DisconnectOBS();
+      await window.go.main.App.DisconnectController('obs');
       connected = false;
       scenes = [];
       inputs = [];

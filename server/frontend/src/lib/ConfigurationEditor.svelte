@@ -23,10 +23,16 @@
     studioModeActive: false
   };
 
+  // Server-computed per-button indicators ("active" | "warn" | "").
+  let buttonIndicators = {};
+  let buttonIndicatorsKey = '';
+
   let sourceVisibility = {}; // Track which sources are visible
   let sourceVisibilityVersion = 0;
+  const buttonPressCooldownMs = 350;
+  let lastButtonPressAt = {};
 
-  // Force re-evaluation when obsStatus changes
+  // Force re-evaluation when OBS status changes
   $: obsStatusKey = `${obsStatus.streaming}-${obsStatus.recording}-${obsStatus.currentScene}`;
 
   // Force re-evaluation when sourceVisibility changes
@@ -49,15 +55,37 @@
     updateOBSStatus();
     const statusInterval = setInterval(updateOBSStatus, 2000);
 
+    // Start server-computed button indicator polling
+    updateButtonIndicators();
+    const indicatorInterval = setInterval(updateButtonIndicators, 2000);
+
     // Start source visibility polling
     updateSourceVisibility();
     const visibilityInterval = setInterval(updateSourceVisibility, 2000);
-  
+
     return () => {
       clearInterval(statusInterval);
+      clearInterval(indicatorInterval);
       clearInterval(visibilityInterval);
     };
   });
+
+  async function updateButtonIndicators() {
+    if (!selectedConfig?.id) return;
+    try {
+      const indicators = await window.go.main.App.GetConfigurationButtonIndicators(selectedConfig.id);
+      if (indicators && typeof indicators === 'object') {
+        buttonIndicators = indicators;
+        buttonIndicatorsKey = JSON.stringify(indicators);
+      }
+    } catch (err) {
+      // Silently fail
+    }
+  }
+
+  $: if (selectedConfig?.id) {
+    updateButtonIndicators();
+  }
 
   // Update OBS status for indicators
   async function updateOBSStatus() {
@@ -179,22 +207,28 @@
     // Start actions: show when state IS active
     if (actionType === 'start_stream') return obsStatus.streaming;
     if (actionType === 'start_record') return obsStatus.recording;
-    if (actionType === 'start_replay_buffer') return obsStatus.replayBufferActive;  // ← FIX
-    if (actionType === 'start_virtual_cam') return obsStatus.virtualCamActive;      // ← ADD
-    
+    if (actionType === 'start_replay_buffer') return obsStatus.replayBufferActive;
+    if (actionType === 'start_virtual_cam') return obsStatus.virtualCamActive;
+
     // Stop actions: show when state is NOT active
     if (actionType === 'stop_stream') return !obsStatus.streaming;
     if (actionType === 'stop_record') return !obsStatus.recording;
-    if (actionType === 'stop_replay_buffer') return !obsStatus.replayBufferActive;  // ← FIX
-    if (actionType === 'stop_virtual_cam') return !obsStatus.virtualCamActive;      // ← ADD
-    
+    if (actionType === 'stop_replay_buffer') return !obsStatus.replayBufferActive;
+    if (actionType === 'stop_virtual_cam') return !obsStatus.virtualCamActive;
+
     // Toggle actions: show when state IS active
     if (actionType === 'toggle_stream') return obsStatus.streaming;
     if (actionType === 'toggle_record') return obsStatus.recording;
-    if (actionType === 'toggle_replay_buffer') return obsStatus.replayBufferActive; // ← FIX
-    if (actionType === 'toggle_virtual_cam') return obsStatus.virtualCamActive;     // ← ADD
+    if (actionType === 'toggle_replay_buffer') return obsStatus.replayBufferActive;
+    if (actionType === 'toggle_virtual_cam') return obsStatus.virtualCamActive;
 
     return false;
+  }
+
+  // Return server-computed indicator class for this button.
+  function getButtonIndicatorClass(button) {
+    if (!button?.id || editMode) return '';
+    return buttonIndicators[button.id] || '';
   }
 
   async function loadData() {
@@ -477,28 +511,29 @@
 
   async function executeButtonAction(button) {
     if (!button || editMode) return;  // Don't execute in edit mode
-    
+    const now = Date.now();
+    const last = lastButtonPressAt[button.id] || 0;
+    if (now - last < buttonPressCooldownMs) return;
+    lastButtonPressAt = { ...lastButtonPressAt, [button.id]: now };
+
     try {
-      // console.log('Executing button action:', button.name, button.action);
       await window.go.main.App.ExecuteAction(button.action);
-      // console.log('Action executed successfully');
-      
-      // Update status immediately after toggle/scene actions
+      setTimeout(updateButtonIndicators, 300);
+
       const actionType = button.action.type;
-      // console.log('actionType:', actionType);
+      // Update OBS status immediately after toggle/scene actions
       if (isToggleAction(actionType) || actionType === 'switch_scene') {
         setTimeout(updateOBSStatus, 500);
       }
 
-      // Update source immediately after toggle/source actions
-      if (actionType === 'toggle_source_visibility' || 
-          actionType === 'show_source' || 
+      // Update source visibility immediately after source actions
+      if (actionType === 'toggle_source_visibility' ||
+          actionType === 'show_source' ||
           actionType === 'hide_source') {
         setTimeout(updateSourceVisibility, 500);
       }
     } catch (err) {
       console.error('Failed to execute action:', err);
-      // Show error to user
       alert('Error executing action: ' + err);
     }
   }
@@ -619,10 +654,11 @@
                     on:dragover={handleDragOver}
                   >
                     {#if button}
-                      <div 
-                        class="button-display" 
+                      <div
+                        class="button-display"
                         class:clickable={!editMode}
-                        class:active={(obsStatusKey || sourceVisibilityVersion > 0) && shouldShowIndicator(button)}
+                        class:active={(obsStatusKey || buttonIndicatorsKey || sourceVisibilityVersion > 0) && getButtonIndicatorClass(button) === 'active'}
+                        class:active-warn={(obsStatusKey || buttonIndicatorsKey || sourceVisibilityVersion > 0) && getButtonIndicatorClass(button) === 'warn'}
                         style="background: {button.color}"
                         on:click={() => executeButtonAction(button)}
                       >
@@ -1162,12 +1198,12 @@
     color: #94a3b8;
   }
 
-  /* Indicator - white dot with black border */
+  /* Active indicator — white dot (state is "on") */
   .button-display.active::after {
     content: '';
     position: absolute;
     top: 8px;
-    left: 8px;  /* ← CHANGED FROM right TO left */
+    left: 8px;
     width: 20px;
     height: 20px;
     background: white;
@@ -1178,14 +1214,29 @@
     z-index: 10;
   }
 
+  /* Warning indicator — red dot (state is "bad", e.g. mic muted) */
+  .button-display.active-warn::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 20px;
+    height: 20px;
+    background: #ef4444;
+    border: 4px solid #7f1d1d;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.7);
+    animation: pulse-warn 1.2s infinite;
+    z-index: 10;
+  }
+
   @keyframes pulse {
-    0%, 100% { 
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% { 
-      opacity: 0.8;
-      transform: scale(1.1);
-    }
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.8; transform: scale(1.1); }
+  }
+
+  @keyframes pulse-warn {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.7; transform: scale(1.15); }
   }
 </style>

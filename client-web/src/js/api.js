@@ -120,6 +120,34 @@ export class APIClient {
     }
   }
 
+  // Get per-button indicator states for the current session's active config.
+  // Returns { buttonId: "active"|"warn"|"" } — one entry per button.
+  // The server computes these indicators server-side, so the client never needs
+  // plugin-specific knowledge.
+  async getButtonIndicators() {
+    try {
+      if (!this.sessionID) return {};
+      const response = await fetch(`${this.serverURL}/api/session/button-indicators`, {
+        headers: { 'X-Session-ID': this.sessionID }
+      });
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      return await response.json();
+    } catch (err) {
+      return {};
+    }
+  }
+
+  // Get status details for a specific controller.
+  async getControllerStatus(controllerID) {
+    try {
+      const response = await fetch(`${this.serverURL}/api/controllers/${controllerID}/status`);
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      return await response.json();
+    } catch (err) {
+      return null;
+    }
+  }
+
   // Get OBS status
   async getOBSStatus() {
     try {
