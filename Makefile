@@ -396,6 +396,9 @@ clean-all: clean clean-release
 #==============================================================================
 
 version:
+	@echo "Main (version.txt):"
+	@cat version.txt 2>/dev/null | sed 's/^/  /' || echo "  Not found"
+	@echo ""
 	@echo "Server (wails.json):"
 	@grep '"productVersion"' $(SERVER_DIR)/wails.json | sed 's/^[[:space:]]*/  /' || echo "  Not found"
 	@echo ""
