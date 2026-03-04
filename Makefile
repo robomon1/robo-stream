@@ -500,8 +500,10 @@ set-zoomosc-version:
 	@echo "  • $(ZOOMOSC_DIR)/version.txt"
 
 set-version: set-client-version set-server-version set-zoomosc-version
+	@echo "$(VERSION)" > version.txt
 	@echo ""
 	@echo "✅ All versions updated to $(VERSION)!"
+	@echo "  • version.txt (root)"
 
 #==============================================================================
 # Quick Builds (for testing)
