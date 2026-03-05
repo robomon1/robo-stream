@@ -48,7 +48,7 @@ cd client-web && npm test
 ### Building Release Artifacts
 
 ```bash
-# Build everything for all platforms
+# Build everything for all platforms (server + client + zoomosc plugin)
 make all
 
 # Build individual components
@@ -66,27 +66,44 @@ make android             # Android APK (for GitHub releases)
 make android-bundle      # Android App Bundle (for Play Store)
 make ios                 # Opens Xcode for manual archive
 
+# ZoomOSC plugin
+make zoomosc             # All platforms
+make zoomosc-mac         # macOS (arm64 + amd64)
+make zoomosc-windows     # Windows amd64
+make zoomosc-linux       # Linux amd64
+
 # Package everything into releases/v{VERSION}/
 make release VERSION=1.0.0
 ```
 
 ### Version Management
 
+`make set-version VERSION=x.x.x` updates **all five** version locations atomically:
+
+| File | Component |
+|------|-----------|
+| `version.txt` (root) | Release workflow trigger |
+| `plugins/zoomosc/version.txt` | ZoomOSC plugin |
+| `server/wails.json` | Server |
+| `client-web/package.json` | Client |
+| Android / iOS config | Mobile |
+
 ```bash
 # View all current versions
 make version
 
-# Update client version (updates package.json, Android, iOS)
-make set-client-version VERSION=1.0.1 BUILD=2
+# Update all components to the same version
+make set-version VERSION=1.0.0
 
-# Update server version (updates wails.json)
-make set-server-version VERSION=1.1.0
-
-# Update both to same version
-make set-version VERSION=1.0.0 BUILD=1
+# Update individual components
+make set-client-version VERSION=1.0.1 BUILD=2  # updates package.json, Android, iOS
+make set-server-version VERSION=1.1.0           # updates wails.json
+make set-zoomosc-version VERSION=0.2.0         # updates plugins/zoomosc/version.txt
 ```
 
 Note: BUILD number must increment for each store upload (Android/iOS), independent of VERSION.
+The root `version.txt` is what the release workflow reads when triggered via `workflow_dispatch`
+(as opposed to a tag push), so it must stay current.
 
 ### Quick Development Builds
 
@@ -327,14 +344,99 @@ npx cap open android
 
 ### Release Process
 
-See RELEASE.md for complete instructions. Quick summary:
+See RELEASE.md for complete instructions. The CI/CD release workflow:
 
-1. Update versions: `make set-client-version VERSION=x.x.x BUILD=n`
-2. Commit version changes and tag
-3. Build: `make release VERSION=x.x.x`
-4. Create GitHub release with artifacts from `releases/v{VERSION}/`
-5. Upload Android AAB to Play Console
-6. Archive and upload iOS to App Store Connect
+1. Merge the feature PR to `main` and wait for CI to pass
+2. On `main`, bump all versions: `make set-version VERSION=x.x.x`
+3. Commit: `git add -A && git commit -m "chore: bump version to x.x.x"`
+4. Tag and push: `git tag vx.x.x && git push origin main && git push origin vx.x.x`
+5. The `vx.x.x` tag push automatically triggers `.github/workflows/release.yml`
+6. The workflow builds all platforms and creates a GitHub release with all artifacts
+
+Alternatively, trigger manually via GitHub Actions → "Build and Release" → Run workflow
+(uses `version.txt` in repo root to determine the version).
+
+**What the release workflow builds:**
+- Server: macOS DMG, Linux AppImage+DEB (amd64+arm64), Windows NSIS installer
+- Client: macOS DMG (arm64+x64), Linux AppImage+DEB (x64+arm64), Windows installer
+- ZoomOSC plugin: macOS tar.gz (arm64+amd64), Linux tar.gz, Windows zip
+- Mobile: Android APK/AAB + iOS IPA (only when `ENABLE_MOBILE_BUILDS=true`)
+
+## Plugin System
+
+### Architecture
+
+Plugins are standalone Go binaries in `plugins/<name>/` that connect to the Robo-Stream server via HTTP and implement controller actions independently of OBS.
+
+**Plugin contract (server side):**
+- `internal/plugin/host_controller.go` — `HostController` struct; plugins register via `POST /api/plugins/register`
+- `ComputeIndicator(buttonDef, status map)` → returns `"active"`, `"unknown"`, or `""` (no indicator)
+  - `""` = button has no `IndicatorField` at all
+  - `"unknown"` = button has `IndicatorField` but the `*_known` flag is `false` (state not yet confirmed)
+  - `"active"` = state is known and true
+
+**Client-side indicator rendering (`client-web/src/css/app.css`, `app.js`):**
+- `.recording` class → white pulsing dot (active state)
+- `.indicator-unknown` class → grey `?` dot (unknown state, same size/position as active dot)
+- No class → no indicator dot
+
+### ZoomOSC Plugin (`plugins/zoomosc/`)
+
+Bridges ZoomOSC (Zoom meeting control via OSC) to the Robo-Stream button system.
+
+**Key files:**
+- `osc_client.go` — OSC UDP listener/sender, state machine, event handlers
+- `zoomosc.go` — Plugin registration, button action dispatch
+- `version.txt` — Plugin version (updated by `make set-zoomosc-version`)
+- `dist/` — Build output (gitignored)
+
+**ZoomOSC OSC protocol (v4.6, non-PRO):**
+
+State is **event-driven only** (non-PRO cannot query current state on connect):
+| Event received | Meaning |
+|---|---|
+| `/zoomosc/me/mute` | Mic muted |
+| `/zoomosc/me/unMute` | Mic unmuted |
+| `/zoomosc/me/videoOn` | Video on |
+| `/zoomosc/me/videoOff` | Video off |
+| `/zoomosc/me/handRaised` | Hand raised |
+| `/zoomosc/me/handLowered` | Hand lowered |
+| `/zoomosc/me/SSOn` | Screen share started |
+| `/zoomosc/me/SSOff` | Screen share stopped |
+
+**Pong response format** — does NOT contain audio/video state:
+```
+[0] pingArg  [1] zoomOSCversion  [2] subscribeMode  [3] galTrackMode
+[4] inCallStatus  [5] numTargets  [6] numUsersInCall  [7] isPro
+```
+Only `arg[4]` (inCallStatus) is used: if `0`, all `*_known` flags are cleared.
+
+**Startup sequence:**
+1. Send `/zoom/subscribe 2` (subscribe to All events) after 500ms delay
+2. Send `/zoom/ping` to verify connectivity
+3. State begins as `unknown` until first event or button press arrives
+
+**Correct OSC command paths (non-PRO):**
+- Toggle mute: `/zoom/me/mute`
+- Toggle video: `/zoom/me/video`
+- Toggle hand: `/zoom/me/toggleHand`  ← NOT `/zoom/me/handToggle`
+- Start share: `/zoom/me/startScreenSharePrimary`  ← NOT `/zoom/me/startShare`
+- Spot self: `/zoom/me/spot`  ← NOT `/zoom/me/spotlight`
+- ToggleShare: synthesized from current `sharing` state (no ZoomOSC toggleShare command)
+
+**Logging:** `/zoomosc/pong` and `/zoomosc/ping` messages are intentionally suppressed
+from logs to reduce heartbeat noise.
+
+### Adding a New Plugin
+
+1. Create `plugins/<name>/` with a Go `main` package
+2. Register with server: `POST /api/plugins/register` with button definitions and indicator fields
+3. Poll `/api/plugins/<name>/execute` for button press events
+4. Push status updates to `/api/plugins/<name>/status`
+5. Add build targets to root `Makefile` following the `zoomosc` pattern
+6. Add CI test job to `.github/workflows/ci.yml`
+7. Add release build job to `.github/workflows/release.yml`
+8. Add `version.txt` to the plugin directory
 
 ## Documentation Files
 
@@ -358,6 +460,10 @@ See RELEASE.md for complete instructions. Quick summary:
 - Vite (build tool)
 - Capacitor 5 (mobile wrapper)
 - Electron 40 (desktop wrapper)
+
+**Plugins:**
+- Go 1.21+ (standalone binaries)
+- `plugins/zoomosc/` — ZoomOSC → Robo-Stream bridge (OSC UDP)
 
 **Build Tools:**
 - Make (orchestration)
