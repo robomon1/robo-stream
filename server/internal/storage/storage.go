@@ -42,7 +42,7 @@ func (s *Storage) LoadJSON(filename string, v interface{}) error {
 	return json.Unmarshal(data, v)
 }
 
-// SaveJSON saves data to a JSON file
+// SaveJSON saves data to a JSON file, creating parent directories as needed.
 func (s *Storage) SaveJSON(filename string, v interface{}) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -53,6 +53,9 @@ func (s *Storage) SaveJSON(filename string, v interface{}) error {
 	}
 
 	path := filepath.Join(s.dataDir, filename)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
 	return os.WriteFile(path, data, 0644)
 }
 

@@ -20,8 +20,16 @@ import (
 	"time"
 
 	"github.com/robomon1/robo-stream/server/internal/controller"
+	"github.com/robomon1/robo-stream/server/internal/models"
 	"github.com/robomon1/robo-stream/server/internal/storage"
 )
+
+// ButtonCreator is the subset of ButtonManager used to seed default plugin buttons.
+// Using an interface avoids a circular import between the plugin and manager packages.
+type ButtonCreator interface {
+	List() []*models.Button
+	Create(btn *models.Button) error
+}
 
 // pluginReadyMsg is the JSON payload printed to stdout by a plugin binary
 // once it is listening and ready for connections.
@@ -48,23 +56,25 @@ const crashResetUptime = 2 * time.Minute
 // Manager discovers, starts, and monitors plugin subprocesses.
 // It is safe for concurrent use.
 type Manager struct {
-	pluginsDir  string
-	storage     *storage.Storage
-	registry    *controller.Registry
-	processes   map[string]*PluginProcess
-	crashCounts map[string]int // consecutive crash count per plugin ID
-	mu          sync.RWMutex
+	pluginsDir    string
+	storage       *storage.Storage
+	registry      *controller.Registry
+	buttonCreator ButtonCreator  // optional; seeds default buttons on first plugin start
+	processes     map[string]*PluginProcess
+	crashCounts   map[string]int // consecutive crash count per plugin ID
+	mu            sync.RWMutex
 }
 
 // New creates a plugin manager. pluginsDir is the root directory scanned for
 // plugin subdirectories (typically {dataDir}/plugins/).
-func New(pluginsDir string, st *storage.Storage, reg *controller.Registry) *Manager {
+func New(pluginsDir string, st *storage.Storage, reg *controller.Registry, bc ButtonCreator) *Manager {
 	return &Manager{
-		pluginsDir:  pluginsDir,
-		storage:     st,
-		registry:    reg,
-		processes:   make(map[string]*PluginProcess),
-		crashCounts: make(map[string]int),
+		pluginsDir:    pluginsDir,
+		storage:       st,
+		registry:      reg,
+		buttonCreator: bc,
+		processes:     make(map[string]*PluginProcess),
+		crashCounts:   make(map[string]int),
 	}
 }
 
@@ -277,6 +287,10 @@ func (m *Manager) startPlugin(pluginDir, execPath string) error {
 		m.registry.Register(ctrl)
 	}
 
+	// Seed default buttons into the library if none exist yet for this plugin.
+	// Tries --buttons CLI flag first (no HTTP needed), falls back to HTTP /buttons.
+	m.seedDefaultButtons(msg.ID, execPath, ctrl)
+
 	// Drain remaining stdout to log
 	go drainToLog(remainingStdout, fmt.Sprintf("[plugin/%s]", msg.ID))
 
@@ -367,6 +381,78 @@ func (m *Manager) monitorProcess(proc *PluginProcess) {
 		// startPlugin failed; the plugin is absent from the registry.
 		// Its position in the order slice is preserved for when it
 		// is manually restarted.
+	}
+}
+
+// seedDefaultButtons adds the plugin's default buttons to the library the first
+// time a plugin is loaded. It first tries invoking the binary with --buttons,
+// which prints a JSON array and exits immediately (no HTTP server or external
+// service connection required). If that fails — e.g. the installed binary
+// predates the --buttons flag — it falls back to the plugin's HTTP /buttons
+// endpoint, which is registered by the SDK for every plugin binary.
+func (m *Manager) seedDefaultButtons(pluginID, execPath string, ctrl *HostController) {
+	if m.buttonCreator == nil {
+		return
+	}
+
+	// Short-circuit if buttons for this controller already exist.
+	for _, btn := range m.buttonCreator.List() {
+		if btn.Action.Controller == pluginID {
+			return
+		}
+	}
+
+	// Try --buttons CLI flag first (doesn't require the HTTP server to be up).
+	var defaults []pluginButton
+	out, err := exec.Command(execPath, "--buttons").Output()
+	if err == nil {
+		if jsonErr := json.Unmarshal(out, &defaults); jsonErr != nil {
+			log.Printf("plugin: %s --buttons: failed to parse JSON: %v", pluginID, jsonErr)
+			defaults = nil
+		}
+	} else {
+		log.Printf("plugin: %s --buttons failed (%v), falling back to HTTP /buttons", pluginID, err)
+	}
+
+	// Fall back to HTTP /buttons endpoint if the CLI approach didn't work.
+	// The SDK registers this endpoint for every plugin binary, so it always works
+	// once the plugin's HTTP server is up (which it is at this point in startPlugin).
+	if len(defaults) == 0 && ctrl != nil {
+		for _, b := range ctrl.GetDefaultButtons() {
+			defaults = append(defaults, pluginButton{
+				Name:        b.Name,
+				Description: b.Description,
+				Icon:        b.Icon,
+				Color:       b.Color,
+				Action: pluginActionRef{
+					Controller: b.Action.Controller,
+					Type:       b.Action.Type,
+					Params:     b.Action.Params,
+				},
+			})
+		}
+	}
+
+	if len(defaults) == 0 {
+		return
+	}
+
+	log.Printf("plugin: seeding %d default buttons for %s", len(defaults), pluginID)
+	for _, b := range defaults {
+		btn := &models.Button{
+			Name:        b.Name,
+			Description: b.Description,
+			Icon:        b.Icon,
+			Color:       b.Color,
+			Action: models.ButtonAction{
+				Controller: b.Action.Controller,
+				Type:       b.Action.Type,
+				Params:     b.Action.Params,
+			},
+		}
+		if err := m.buttonCreator.Create(btn); err != nil {
+			log.Printf("plugin: failed to seed button %q: %v", b.Name, err)
+		}
 	}
 }
 

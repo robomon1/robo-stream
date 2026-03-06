@@ -140,23 +140,20 @@ func (z *ZoomOSCController) SupportedActions() []sdk.ActionTypeDef {
 			IndicatorField: "sharing", IndicatorInvert: true},
 
 		// ── Hand Raise ─────────────────────────────────────────────────────
-		// raise_hand / toggle_hand: white indicator when hand IS raised
+		// raise_hand: white indicator when hand IS raised
 		{Type: "raise_hand", Name: "Raise Hand", Description: "Raise your hand",
 			IndicatorField: "hand_raised", IndicatorInvert: false},
 		// lower_hand: white indicator when hand IS lowered
 		{Type: "lower_hand", Name: "Lower Hand", Description: "Lower your hand",
 			IndicatorField: "hand_raised", IndicatorInvert: true},
-		{Type: "toggle_hand", Name: "Toggle Hand", Description: "Toggle raise/lower hand",
-			IndicatorField: "hand_raised", IndicatorInvert: false},
+		// NOTE: toggle_hand (/zoom/me/toggleHand) is not supported by ZoomOSC non-PRO.
 
 		// ── Meeting ────────────────────────────────────────────────────────
 		// No indicator for leave/end — these are one-shot destructive actions.
 		{Type: "leave_meeting", Name: "Leave Meeting", Description: "Leave the current meeting"},
-		{Type: "end_meeting", Name: "End Meeting (Host)", Description: "End the meeting for all participants"},
-
-		// ── Spotlight ──────────────────────────────────────────────────────
-		{Type: "spotlight_self", Name: "Spotlight Self", Description: "Pin your video for all (host/co-host)"},
-		{Type: "unspotlight_self", Name: "Remove Spotlight", Description: "Remove your spotlight"},
+		{Type: "end_meeting", Name: "End Meeting (Host)", Description: "End the meeting for all participants (host only)"},
+		// NOTE: spotlight_self / unspotlight_self require host/co-host privileges
+		// and are not available to regular participants (PRO feature).
 	}
 }
 
@@ -189,18 +186,11 @@ func (z *ZoomOSCController) Execute(action sdk.ExecuteRequest) error {
 		err = z.client.RaiseHand()
 	case "lower_hand":
 		err = z.client.LowerHand()
-	case "toggle_hand":
-		err = z.client.ToggleHand()
 	// Meeting
 	case "leave_meeting":
 		err = z.client.LeaveMeeting()
 	case "end_meeting":
 		err = z.client.EndMeeting()
-	// Spotlight
-	case "spotlight_self":
-		err = z.client.SpotlightSelf()
-	case "unspotlight_self":
-		err = z.client.UnspotlightSelf()
 	default:
 		return fmt.Errorf("unknown ZoomOSC action: %s", action.Type)
 	}
@@ -223,32 +213,74 @@ func (z *ZoomOSCController) DefaultButtons() []sdk.Button {
 	c := "zoomosc"
 	return []sdk.Button{
 		{
-			Name:        "Toggle Mic",
-			Description: "Toggle microphone mute via ZoomOSC",
+			Name:        "Toggle Audio",
+			Description: "Toggle microphone mute/unmute via ZoomOSC",
 			Icon:        "mic",
 			Color:       "#2d8cff",
 			Action:      sdk.ExecuteRequest{Controller: c, Type: "toggle_audio"},
 		},
 		{
-			Name:        "Toggle Camera",
+			Name:        "Mute Audio",
+			Description: "Mute the microphone via ZoomOSC",
+			Icon:        "mic-off",
+			Color:       "#2d8cff",
+			Action:      sdk.ExecuteRequest{Controller: c, Type: "mute_audio"},
+		},
+		{
+			Name:        "Unmute Audio",
+			Description: "Unmute the microphone via ZoomOSC",
+			Icon:        "mic",
+			Color:       "#2d8cff",
+			Action:      sdk.ExecuteRequest{Controller: c, Type: "unmute_audio"},
+		},
+		{
+			Name:        "Toggle Video",
 			Description: "Toggle camera on/off via ZoomOSC",
 			Icon:        "video",
 			Color:       "#2d8cff",
 			Action:      sdk.ExecuteRequest{Controller: c, Type: "toggle_video"},
 		},
 		{
-			Name:        "Leave Meeting",
-			Description: "Leave the current Zoom meeting",
-			Icon:        "phone-off",
-			Color:       "#e74c3c",
-			Action:      sdk.ExecuteRequest{Controller: c, Type: "leave_meeting"},
+			Name:        "Stop Video",
+			Description: "Turn the camera off via ZoomOSC",
+			Icon:        "video",
+			Color:       "#2d8cff",
+			Action:      sdk.ExecuteRequest{Controller: c, Type: "stop_video"},
 		},
 		{
-			Name:        "Share Screen",
-			Description: "Toggle screen sharing via ZoomOSC",
+			Name:        "Start Video",
+			Description: "Turn the camera on via ZoomOSC",
+			Icon:        "video",
+			Color:       "#2d8cff",
+			Action:      sdk.ExecuteRequest{Controller: c, Type: "start_video"},
+		},
+		{
+			Name:        "Raise Hand",
+			Description: "Raise your hand via ZoomOSC",
+			Icon:        "hand",
+			Color:       "#2d8cff",
+			Action:      sdk.ExecuteRequest{Controller: c, Type: "raise_hand"},
+		},
+		{
+			Name:        "Lower Hand",
+			Description: "Lower your hand via ZoomOSC",
+			Icon:        "hand",
+			Color:       "#2d8cff",
+			Action:      sdk.ExecuteRequest{Controller: c, Type: "lower_hand"},
+		},
+		{
+			Name:        "Stop Screen Share",
+			Description: "Stop sharing your screen via ZoomOSC",
 			Icon:        "monitor",
-			Color:       "#27ae60",
-			Action:      sdk.ExecuteRequest{Controller: c, Type: "toggle_share"},
+			Color:       "#2d8cff",
+			Action:      sdk.ExecuteRequest{Controller: c, Type: "stop_share"},
+		},
+		{
+			Name:        "Start Screen Share",
+			Description: "Start sharing your screen via ZoomOSC",
+			Icon:        "monitor",
+			Color:       "#2d8cff",
+			Action:      sdk.ExecuteRequest{Controller: c, Type: "start_share"},
 		},
 	}
 }

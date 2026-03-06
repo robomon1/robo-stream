@@ -487,6 +487,37 @@
     return buttons.find(b => b.id === buttonId);
   }
 
+  // ── Button Library grouping ────────────────────────────────────────────────
+
+  const CONTROLLER_NAMES = { obs: 'OBS Studio', zoomosc: 'ZoomOSC' };
+  function controllerDisplayName(ctrl) {
+    return CONTROLLER_NAMES[ctrl] || ctrl;
+  }
+
+  // Track which controller groups are collapsed; all start expanded.
+  let collapsedGroups = {};
+  function toggleGroup(controllerId) {
+    collapsedGroups = { ...collapsedGroups, [controllerId]: !collapsedGroups[controllerId] };
+    setTimeout(() => { if (window.lucide) lucide.createIcons(); }, 50);
+  }
+
+  // Reactive: rebuild groups whenever buttons array changes.
+  $: buttonGroups = (() => {
+    const map = {};
+    for (const btn of buttons) {
+      const ctrl = btn.action?.controller || 'obs';
+      if (!map[ctrl]) map[ctrl] = [];
+      map[ctrl].push(btn);
+    }
+    return Object.entries(map)
+      .sort(([a], [b]) => {
+        if (a === 'obs') return -1;
+        if (b === 'obs') return 1;
+        return a.localeCompare(b);
+      })
+      .map(([ctrl, btns]) => ({ id: ctrl, name: controllerDisplayName(ctrl), buttons: btns }));
+  })();
+
   async function duplicateButton(button) {
     try {
       const copy = {
@@ -702,46 +733,57 @@
               </div>
             {:else}
               <div class="button-library-list">
-                {#each buttons as button}
-                  <div 
-                    class="library-button"
-                    draggable="true"
-                    on:dragstart={(e) => handleDragStart(e, button)}
-                    on:dragend={handleDragEnd}
-                  >
-                    <div class="library-button-preview" style="background: {button.color}" draggable="false">
-                      <i data-lucide={button.icon}></i>
-                    </div>
-                    <div class="library-button-info" draggable="false">
-                      <span class="library-button-name">{button.name}</span>
-                      <span class="library-button-action">{button.action.type}</span>
-                    </div>
-                    <div class="library-button-actions" draggable="false">
-                      <button 
-                        class="btn-icon-small" 
-                        on:click|stopPropagation={() => editButton(button)}
-                        on:mousedown|stopPropagation
-                        title="Edit"
-                      >
-                        <i data-lucide="edit"></i>
-                      </button>
-                      <button 
-                        class="btn-icon-small" 
-                        on:click|stopPropagation={() => duplicateButton(button)}
-                        on:mousedown|stopPropagation
-                        title="Duplicate"
-                      >
-                        <i data-lucide="copy"></i>
-                      </button>
-                      <button 
-                        class="btn-icon-small btn-danger-small" 
-                        on:click|stopPropagation={() => deleteButton(button)}
-                        on:mousedown|stopPropagation
-                        title="Delete"
-                      >
-                        <i data-lucide="trash-2"></i>
-                      </button>
-                    </div>
+                {#each buttonGroups as group}
+                  <div class="library-group">
+                    <button class="library-group-header" on:click={() => toggleGroup(group.id)}>
+                      <span class="group-name">{group.name}</span>
+                      <span class="group-count">{group.buttons.length}</span>
+                      <i data-lucide={collapsedGroups[group.id] ? 'chevron-right' : 'chevron-down'}></i>
+                    </button>
+                    {#if !collapsedGroups[group.id]}
+                      {#each group.buttons as button}
+                        <div
+                          class="library-button"
+                          draggable="true"
+                          on:dragstart={(e) => handleDragStart(e, button)}
+                          on:dragend={handleDragEnd}
+                        >
+                          <div class="library-button-preview" style="background: {button.color}" draggable="false">
+                            <i data-lucide={button.icon}></i>
+                          </div>
+                          <div class="library-button-info" draggable="false">
+                            <span class="library-button-name">{button.name}</span>
+                            <span class="library-button-action">{button.action.type}</span>
+                          </div>
+                          <div class="library-button-actions" draggable="false">
+                            <button
+                              class="btn-icon-small"
+                              on:click|stopPropagation={() => editButton(button)}
+                              on:mousedown|stopPropagation
+                              title="Edit"
+                            >
+                              <i data-lucide="edit"></i>
+                            </button>
+                            <button
+                              class="btn-icon-small"
+                              on:click|stopPropagation={() => duplicateButton(button)}
+                              on:mousedown|stopPropagation
+                              title="Duplicate"
+                            >
+                              <i data-lucide="copy"></i>
+                            </button>
+                            <button
+                              class="btn-icon-small btn-danger-small"
+                              on:click|stopPropagation={() => deleteButton(button)}
+                              on:mousedown|stopPropagation
+                              title="Delete"
+                            >
+                              <i data-lucide="trash-2"></i>
+                            </button>
+                          </div>
+                        </div>
+                      {/each}
+                    {/if}
                   </div>
                 {/each}
               </div>
@@ -1061,7 +1103,56 @@
   .button-library-list {
     display: flex;
     flex-direction: column;
+    gap: 4px;
+  }
+
+  .library-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .library-group-header {
+    display: flex;
+    align-items: center;
     gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    text-align: left;
+    margin-top: 8px;
+  }
+
+  .library-group-header:hover {
+    background: #0f3460;
+    color: #94a3b8;
+  }
+
+  .library-group-header i {
+    width: 12px;
+    height: 12px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .group-name {
+    flex: 1;
+  }
+
+  .group-count {
+    background: #0f3460;
+    color: #64748b;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
   }
 
   .library-button {
