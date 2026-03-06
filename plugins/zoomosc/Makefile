@@ -8,12 +8,19 @@ LDFLAGS   := -ldflags "-s -w -X main.Version=$(VERSION)"
 # Output directory for release archives
 DIST := dist
 
+# Detect current platform so `make build` outputs to dist/ alongside the
+# platform-specific targets rather than dropping a bare binary in the root.
+NATIVE_OS   := $(shell go env GOOS)
+NATIVE_ARCH := $(shell go env GOARCH)
+NATIVE_EXT  := $(if $(filter windows,$(NATIVE_OS)),.exe,)
+
 .PHONY: build build-all build-mac-arm64 build-mac-amd64 build-windows build-linux \
         release clean tidy test
 
-## build: build for the current platform
+## build: build for the current platform (output to dist/, consistent with platform targets)
 build:
-	go build $(LDFLAGS) -o $(BINARY) .
+	mkdir -p $(DIST)
+	go build $(LDFLAGS) -o $(DIST)/$(BINARY)-$(NATIVE_OS)-$(NATIVE_ARCH)$(NATIVE_EXT) .
 
 ## build-all: build for all supported platforms
 build-all: build-mac-arm64 build-mac-amd64 build-windows build-linux

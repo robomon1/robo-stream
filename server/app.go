@@ -66,7 +66,7 @@ func (a *App) startup(ctx context.Context) {
 
 	// Plugin manager discovers and starts external controller plugins
 	pluginsDir := filepath.Join(dataDir, "plugins")
-	a.pluginManager = plugin.New(pluginsDir, a.storage, a.registry)
+	a.pluginManager = plugin.New(pluginsDir, a.storage, a.registry, a.buttonManager)
 
 	a.initializeDefaults()
 

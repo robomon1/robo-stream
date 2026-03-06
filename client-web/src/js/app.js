@@ -23,9 +23,8 @@ const ZOOMOSC_ACTION_TYPES = new Set([
     'toggle_audio', 'mute_audio', 'unmute_audio',
     'toggle_video', 'start_video', 'stop_video',
     'toggle_share', 'start_share', 'stop_share',
-    'raise_hand', 'lower_hand', 'toggle_hand',
+    'raise_hand', 'lower_hand',
     'leave_meeting', 'end_meeting',
-    'spotlight_self', 'unspotlight_self'
 ]);
 
 // Config caches — avoid redundant fetches
