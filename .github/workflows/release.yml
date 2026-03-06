@@ -398,6 +398,18 @@ jobs:
           cd server
           wails build -platform windows/amd64 -clean -nsis
 
+      - name: Debug Azure credential lengths
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          Write-Host "AZURE_TENANT_ID  length: $($env:AZURE_TENANT_ID.Length)  (expected 36)"
+          Write-Host "AZURE_CLIENT_ID  length: $($env:AZURE_CLIENT_ID.Length)  (expected 36)"
+          Write-Host "AZURE_CLIENT_SECRET length: $($env:AZURE_CLIENT_SECRET.Length)"
+          Write-Host "AZURE_TENANT_ID  first char: $($env:AZURE_TENANT_ID[0])"
+          Write-Host "AZURE_CLIENT_ID  first char: $($env:AZURE_CLIENT_ID[0])"
+
       - name: Sign Windows installer (Azure Trusted Signing)
         uses: azure/trusted-signing-action@v0.4.0
         env:
@@ -675,6 +687,18 @@ jobs:
         run: |
           cd client-web
           npm run electron:build:win
+
+      - name: Debug Azure credential lengths
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          Write-Host "AZURE_TENANT_ID  length: $($env:AZURE_TENANT_ID.Length)  (expected 36)"
+          Write-Host "AZURE_CLIENT_ID  length: $($env:AZURE_CLIENT_ID.Length)  (expected 36)"
+          Write-Host "AZURE_CLIENT_SECRET length: $($env:AZURE_CLIENT_SECRET.Length)"
+          Write-Host "AZURE_TENANT_ID  first char: $($env:AZURE_TENANT_ID[0])"
+          Write-Host "AZURE_CLIENT_ID  first char: $($env:AZURE_CLIENT_ID[0])"
 
       - name: Sign Windows installer (Azure Trusted Signing)
         uses: azure/trusted-signing-action@v0.4.0
