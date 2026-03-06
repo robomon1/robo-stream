@@ -398,6 +398,19 @@ jobs:
           cd server
           wails build -platform windows/amd64 -clean -nsis
 
+      - name: Sign Windows installer (Azure Trusted Signing)
+        uses: azure/trusted-signing-action@v0.4.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: server/build/bin
+          files-folder-filter: exe
+          files-folder-recurse: false
+
       - name: Rename Windows Installer
         run: |
           cd server/build/bin
@@ -661,6 +674,19 @@ jobs:
         run: |
           cd client-web
           npm run electron:build:win
+
+      - name: Sign Windows installer (Azure Trusted Signing)
+        uses: azure/trusted-signing-action@v0.4.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: client-web/electron-dist
+          files-folder-filter: exe
+          files-folder-recurse: false
 
       - name: Rename Windows installer
         run: |
