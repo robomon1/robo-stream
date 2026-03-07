@@ -364,6 +364,9 @@ jobs:
     name: Build Server - Windows
     needs: detect-version
     runs-on: windows-latest
+    permissions:
+      id-token: write
+      contents: read  # Required for checkout
     if: vars.ENABLE_SERVER_BUILDS != 'false'
     steps:
       - name: Checkout code
@@ -648,6 +651,9 @@ jobs:
     name: Build Client - Windows
     needs: detect-version
     runs-on: windows-latest
+    permissions:
+      id-token: write
+      contents: read  # Required for checkout
     if: vars.ENABLE_CLIENT_BUILDS != 'false'
     steps:
       - name: Checkout code
