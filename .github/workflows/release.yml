@@ -364,6 +364,9 @@ jobs:
     name: Build Server - Windows
     needs: detect-version
     runs-on: windows-latest
+    permissions:
+      id-token: write
+      contents: read  # Required for checkout
     if: vars.ENABLE_SERVER_BUILDS != 'false'
     steps:
       - name: Checkout code
@@ -398,19 +401,24 @@ jobs:
           cd server
           wails build -platform windows/amd64 -clean -nsis
 
-      - name: Sign Windows installer (Azure Trusted Signing)
-        uses: azure/trusted-signing-action@v0.4.0
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign Windows installer (Azure Artifact Signing)
+        uses: azure/artifact-signing-action@v1
         with:
           endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
           files-folder: server/build/bin
           files-folder-filter: exe
-          files-folder-recurse: false
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
 
       - name: Rename Windows Installer
         run: |
@@ -643,6 +651,9 @@ jobs:
     name: Build Client - Windows
     needs: detect-version
     runs-on: windows-latest
+    permissions:
+      id-token: write
+      contents: read  # Required for checkout
     if: vars.ENABLE_CLIENT_BUILDS != 'false'
     steps:
       - name: Checkout code
@@ -676,19 +687,24 @@ jobs:
           cd client-web
           npm run electron:build:win
 
-      - name: Sign Windows installer (Azure Trusted Signing)
-        uses: azure/trusted-signing-action@v0.4.0
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign Windows installer (Azure Artifact Signing)
+        uses: azure/artifact-signing-action@v1
         with:
           endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
           files-folder: client-web/electron-dist
           files-folder-filter: exe
-          files-folder-recurse: false
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
 
       - name: Rename Windows installer
         run: |
