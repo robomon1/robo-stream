@@ -401,6 +401,46 @@ jobs:
           cd server
           wails build -platform windows/amd64 -clean -nsis
 
+      - name: Select and rename Windows installer
+        id: server_installer
+        run: |
+          cd server/build/bin
+          $VERSION = "${{ steps.version.outputs.version }}"
+          $TARGET = "robo-stream-server-x86_64-$VERSION.exe"
+
+          Write-Host "=== Files in server/build/bin ==="
+          Get-ChildItem
+
+          if (Test-Path $TARGET) {
+            Write-Host "Target installer already exists: $TARGET"
+          } else {
+            $candidates = Get-ChildItem -File -Filter "*.exe" | Where-Object {
+              $_.Name -match '(?i)(setup|installer)'
+            }
+
+            if ($candidates.Count -eq 0) {
+              $allExe = Get-ChildItem -File -Filter "*.exe"
+              if ($allExe.Count -eq 1) {
+                $candidates = $allExe
+              } else {
+                Write-Host "Error: Could not uniquely identify installer executable"
+                Write-Host "Found EXEs:"
+                $allExe | ForEach-Object { Write-Host " - $($_.Name)" }
+                exit 1
+              }
+            } elseif ($candidates.Count -gt 1) {
+              Write-Host "Error: Multiple installer-like executables found"
+              $candidates | ForEach-Object { Write-Host " - $($_.Name)" }
+              exit 1
+            }
+
+            $installer = $candidates | Select-Object -First 1
+            Write-Host "Renaming $($installer.Name) to $TARGET"
+            Rename-Item $installer.Name $TARGET
+          }
+
+          "target_name=$TARGET" >> $env:GITHUB_OUTPUT
+
       - name: Azure login
         uses: azure/login@v2
         with:
@@ -415,24 +455,23 @@ jobs:
           signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
           files-folder: server/build/bin
-          files-folder-filter: exe
+          files-folder-filter: ${{ steps.server_installer.outputs.target_name }}
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
 
-      - name: Rename Windows Installer
+      - name: Verify signature
         run: |
           cd server/build/bin
-          $VERSION = "${{ steps.version.outputs.version }}"
-          $TARGET = "robo-stream-server-x86_64-$VERSION.exe"
-          Write-Host "=== Files in server/build/bin ==="
-          Get-ChildItem
-          $installer = Get-ChildItem -Filter "*.exe" | Where-Object { $_.Name -ne $TARGET } | Select-Object -First 1
-          if ($installer) {
-            Write-Host "Renaming $($installer.Name) to $TARGET"
-            Rename-Item $installer.Name $TARGET
-          } elseif (-Not (Test-Path $TARGET)) {
-            Write-Host "Error: No .exe installer found to rename"
+          $TARGET = "${{ steps.server_installer.outputs.target_name }}"
+          if (-Not (Test-Path $TARGET)) {
+            Write-Host "Error: Signed installer not found: $TARGET"
+            exit 1
+          }
+          $sig = Get-AuthenticodeSignature $TARGET
+          Write-Host "Signature status: $($sig.Status)"
+          if ($sig.Status -ne "Valid") {
+            Write-Host "Error: Authenticode signature validation failed for $TARGET"
             exit 1
           }
 
@@ -687,6 +726,46 @@ jobs:
           cd client-web
           npm run electron:build:win
 
+      - name: Select and rename Windows installer
+        id: client_installer
+        run: |
+          cd client-web/electron-dist
+          $VERSION = "${{ steps.version.outputs.version }}"
+          $TARGET = "robo-stream-client-x86_64-$VERSION.exe"
+
+          Write-Host "=== Files in client-web/electron-dist ==="
+          Get-ChildItem
+
+          if (Test-Path $TARGET) {
+            Write-Host "Target installer already exists: $TARGET"
+          } else {
+            $candidates = Get-ChildItem -File -Filter "*.exe" | Where-Object {
+              $_.Name -match '(?i)(setup|installer)'
+            }
+
+            if ($candidates.Count -eq 0) {
+              $allExe = Get-ChildItem -File -Filter "*.exe"
+              if ($allExe.Count -eq 1) {
+                $candidates = $allExe
+              } else {
+                Write-Host "Error: Could not uniquely identify installer executable"
+                Write-Host "Found EXEs:"
+                $allExe | ForEach-Object { Write-Host " - $($_.Name)" }
+                exit 1
+              }
+            } elseif ($candidates.Count -gt 1) {
+              Write-Host "Error: Multiple installer-like executables found"
+              $candidates | ForEach-Object { Write-Host " - $($_.Name)" }
+              exit 1
+            }
+
+            $installer = $candidates | Select-Object -First 1
+            Write-Host "Renaming $($installer.Name) to $TARGET"
+            Rename-Item $installer.Name $TARGET
+          }
+
+          "target_name=$TARGET" >> $env:GITHUB_OUTPUT
+
       - name: Azure login
         uses: azure/login@v2
         with:
@@ -701,25 +780,23 @@ jobs:
           signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
           files-folder: client-web/electron-dist
-          files-folder-filter: exe
+          files-folder-filter: ${{ steps.client_installer.outputs.target_name }}
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
 
-      - name: Rename Windows installer
+      - name: Verify signature
         run: |
           cd client-web/electron-dist
-          $VERSION = "${{ steps.version.outputs.version }}"
-          $TARGET_NAME = "robo-stream-client-x86_64-$VERSION.exe"
-          
-          $installer = Get-ChildItem -Filter "*.exe" | Where-Object { $_.Name -ne $TARGET_NAME } | Select-Object -First 1
-          
-          if ($installer) {
-            Write-Host "Renaming $($installer.Name) to $TARGET_NAME"
-            Rename-Item $installer.Name $TARGET_NAME
-          } else {
-            Write-Host "Error: No installer found to rename"
-            Get-ChildItem
+          $TARGET = "${{ steps.client_installer.outputs.target_name }}"
+          if (-Not (Test-Path $TARGET)) {
+            Write-Host "Error: Signed installer not found: $TARGET"
+            exit 1
+          }
+          $sig = Get-AuthenticodeSignature $TARGET
+          Write-Host "Signature status: $($sig.Status)"
+          if ($sig.Status -ne "Valid") {
+            Write-Host "Error: Authenticode signature validation failed for $TARGET"
             exit 1
           }
 
