@@ -724,7 +724,8 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
           cd client-web
-          npm run electron:build:win
+          npm run build
+          npx electron-builder --win nsis
 
       - name: Select and rename Windows installer
         id: client_installer
