@@ -61,7 +61,7 @@ help:
 	@echo "  make client-linux     - Build client for Linux"
 	@echo "  make android          - Build Android APK"
 	@echo "  make android-bundle   - Build Android App Bundle (for Play Store)"
-	@echo "  make ios              - Build iOS (opens Xcode)"
+	@echo "  make ios              - Build iOS IPA (command line via xcodebuild)"
 	@echo ""
 	@echo "ZoomOSC plugin:"
 	@echo "  make zoomosc          - Build ZoomOSC plugin for all platforms"
@@ -241,15 +241,21 @@ android-bundle: client-prepare
 	@echo "   Output: $(CLIENT_DIR)/android/app/build/outputs/bundle/release/app-release.aab"
 
 ios: client-prepare
-	@echo "📱 Opening Xcode for iOS build..."
-	@echo ""
-	@echo "In Xcode:"
-	@echo "  1. Product → Archive"
-	@echo "  2. Window → Organizer"
-	@echo "  3. Distribute App → Ad Hoc or TestFlight"
-	@echo "  4. Export IPA to: $(IOS_BUILD)/"
-	@echo ""
-	cd $(CLIENT_DIR) && npx cap open ios
+	@echo "📱 Building iOS IPA from command line..."
+	cd $(CLIENT_DIR) && npx cap sync ios
+	mkdir -p $(IOS_BUILD)
+	cd $(CLIENT_DIR)/ios/App && xcodebuild archive \
+		-workspace App.xcworkspace \
+		-scheme App \
+		-configuration Release \
+		-sdk iphoneos \
+		-archivePath ../build/App.xcarchive
+	xcodebuild -exportArchive \
+		-archivePath $(IOS_BUILD)/App.xcarchive \
+		-exportPath $(IOS_BUILD)/ \
+		-exportOptionsPlist $(CLIENT_DIR)/ios/ExportOptions.plist
+	@echo "✅ iOS IPA build complete"
+	@echo "   Output: $(IOS_BUILD)/"
 
 #==============================================================================
 # ZoomOSC Plugin
